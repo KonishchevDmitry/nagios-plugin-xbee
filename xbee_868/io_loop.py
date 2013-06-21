@@ -196,7 +196,7 @@ class IOObjectBase(object):
 
 
     def poll_read(self):
-        """Returns True if we need to poll the socket for read availability."""
+        """Returns True if we need to poll the file for read availability."""
 
         return False
 
