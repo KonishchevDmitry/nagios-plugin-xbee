@@ -37,6 +37,7 @@ class Sensor(IOObjectBase):
 
         super(Sensor, self).__init__(io_loop, self.__sensor)
 
+        self.__skipped_bytes = 0
         self.__set_state(_STATE_FIND_FRAME_HEADER)
 
         self.__offset = None
@@ -75,55 +76,75 @@ class Sensor(IOObjectBase):
             return
 
         if self._read_buffer[-1] == _FRAME_DELIMITER:
-            LOG.debug("Found a frame delimiter.")
+            LOG.debug("Found a frame delimiter. %s bytes has been skipped.", self.__skipped_bytes)
             del self._read_buffer[:-1]
             self.__set_state(_STATE_RECV_FRAME_HEADER)
         else:
-            LOG.debug("Skip %s bytes...", len(self._read_buffer))
+            self.__skipped_bytes += 1
+            if not self.__skipped_bytes % 100:
+                LOG.debug("Skip %s bytes...", self.__skipped_bytes)
 
 
     def __handle_frame(self):
         """Handles a frame."""
 
+        LOG.debug("Frame: %s", " ".join("{0:02x}".format(c) for c in self._read_buffer))
+
         self.__check_read_buffer(1)
         frame_type = self._read_buffer[self.__offset]
+        self.__offset += 1
 
-        if frame_type == 0x92:
-            LOG.debug("Frame: %s", " ".join("{0:x}".format(c) for c in self._read_buffer))
-            #frame_format = "!QHBBHB"
-            #assert offset + struct.calcsize(frame_format) < len(frame)
-
-            #address, network_address, \
-            #receive_options, samples_number, \
-            #digital_mask, analog_mask = \
-            #    struct.unpack_from(frame_format, frame, offset=offset)
-
-            #print "Address:", "{0:016X}".format(address)
-            #print "Network address:", "{0:04X}".format(network_address)
-            #print "Digital mask:", hex(digital_mask)
-            #print "Analog mask:", hex(analog_mask)
-            #offset += struct.calcsize(frame_format)
-
-            #if digital_mask:
-            #    offset += 2
-
-            #analog_data_format = "!H"
-            #analog_mask_shift = 0
-            #while analog_mask:
-            #    if analog_mask & 1:
-            #        assert offset + struct.calcsize(analog_data_format) <= len(frame)
-            #        analog_data, = struct.unpack_from(analog_data_format, frame, offset=offset)
-            #        offset += struct.calcsize(analog_data_format)
-
-            #        print "Analog data for", 1 << analog_mask_shift, ":", hex(analog_data)
-            #    analog_mask_shift += 1
-            #    analog_mask >>= 1
-            #frame = bytes(self._read_buffer)
-
-            # TODO FIXME
-            #assert self.__offset == self.__frame_size
-        else:
+        if frame_type != 0x92:
             LOG.info("Got an unknown frame [%#x]. Skipping it.", frame_type)
+
+        frame = bytes(self._read_buffer)
+
+        frame_format = b"!QH BB HB"
+        self.__check_read_buffer(struct.calcsize(frame_format))
+
+        address, network_address, \
+        receive_options, samples_number, \
+        digital_mask, analog_mask = \
+            struct.unpack_from(frame_format, frame, offset=self.__offset)
+        self.__offset += struct.calcsize(frame_format)
+
+        LOG.info("Got a [%#x] frame:", frame_type)
+        LOG.info("Source address: %016X.", address)
+        LOG.info("Network address: %04X.", network_address)
+
+
+        LOG.info("Digital channel mask: %s.", "{0:016b}".format(digital_mask))
+
+        if digital_mask:
+            digital_samples_format = b"!H"
+            digital_samples, = struct.unpack_from(
+                digital_samples_format, frame, offset=self.__offset)
+            self.__offset += struct.calcsize(digital_samples_format)
+
+            LOG.info("Digital samples: %s.", "{0:016b}".format(digital_samples))
+
+
+        LOG.info("Analog channel mask: %s.", "{0:08b}".format(analog_mask))
+
+        analog_sample_format = b"!H"
+        analog_sample_size = struct.calcsize(analog_sample_format)
+        analog_mask_shift = 0
+
+        while analog_mask:
+            if analog_mask & 1:
+                self.__check_read_buffer(analog_sample_size)
+                analog_sample, = struct.unpack_from(
+                    analog_sample_format, frame, offset=self.__offset)
+                self.__offset += analog_sample_size
+
+                LOG.info("Analog sample for %s: %04X.",
+                    "{0:08b}".format(1 << analog_mask_shift), analog_sample)
+
+            analog_mask >>= 1
+            analog_mask_shift += 1
+
+        # TODO FIXME
+        assert self.__offset == len(self._read_buffer) - 1 # -1 for checksum
 
 
     def __receive_frame_body(self):
