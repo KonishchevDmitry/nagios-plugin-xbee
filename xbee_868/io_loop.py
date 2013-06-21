@@ -28,7 +28,7 @@ class LogicalError(Exception):
     def __init__(self):
         Exception.__init__(self, "Logical error.")
 
-LOG = logging.getLogger("c2." + __name__)
+LOG = logging.getLogger(__name__)
 
 
 class IOLoop(object):
