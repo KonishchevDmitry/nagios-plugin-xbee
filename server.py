@@ -19,6 +19,7 @@ from xbee_868.sensor import Sensor
 LOG = logging.getLogger(__name__)
 
 
+# TODO: handle connection lost
 
 # fcntl.fcntl(self.fd, FCNTL.F_SETFL, os.O_NONBLOCK)
 
