@@ -232,6 +232,7 @@ class IOObjectBase(object):
 
     def _read(self, size):
         if len(self._read_buffer) < size:
+            # TODO: EWOULDBLOCK
             data = eintr_retry(os.read)(self.file.fileno(), size - len(self._read_buffer))
             if not data:
                 raise Exception("TODO FIXME")

@@ -6,7 +6,7 @@ import logging
 import struct
 import serial
 
-from xbee_868.core import LogicalError
+from xbee_868.core import Error, LogicalError
 from xbee_868.io_loop import IOObjectBase
 
 
@@ -27,6 +27,13 @@ _STATE_RECV_FRAME_BODY = "receive-frame-body"
 LOG = logging.getLogger(__name__)
 
 
+class _InvalidFrameError(Error):
+    """Invalid frame error."""
+
+    def __init__(self, *args, **kwargs):
+        super(_InvalidFrameError, self).__init__(*args, **kwargs)
+
+
 class Sensor(IOObjectBase):
     """Represents a XBee 868 sensor."""
 
@@ -38,10 +45,10 @@ class Sensor(IOObjectBase):
         super(Sensor, self).__init__(io_loop, self.__sensor)
 
         self.__skipped_bytes = 0
-        self.__set_state(_STATE_FIND_FRAME_HEADER)
-
         self.__offset = None
         self.__frame_size = None
+
+        self.__set_state(_STATE_FIND_FRAME_HEADER)
 
 
     def on_read(self):
@@ -64,22 +71,26 @@ class Sensor(IOObjectBase):
 
 
     def __check_read_buffer(self, size):
-        # TODO
-        assert self.__offset + size <= len(self._read_buffer)
+        """
+        Checks the read buffer for availability of the specified bytes of data
+        (counting from current read offset).
+        """
+
+        if self.__offset + size > len(self._read_buffer):
+            raise _InvalidFrameError("End of frame has been reached.")
 
 
     def __find_frame_header(self):
         """Finds a frame header."""
 
-        # TODO: limits
-        if not self._read(len(self._read_buffer) + 1):
+        if not self._read(1):
             return
 
-        if self._read_buffer[-1] == _FRAME_DELIMITER:
+        if self._read_buffer[0] == _FRAME_DELIMITER:
             LOG.debug("Found a frame delimiter. %s bytes has been skipped.", self.__skipped_bytes)
-            del self._read_buffer[:-1]
             self.__set_state(_STATE_RECV_FRAME_HEADER)
         else:
+            self._clear_read_buffer()
             self.__skipped_bytes += 1
             if not self.__skipped_bytes % 100:
                 LOG.debug("Skip %s bytes...", self.__skipped_bytes)
@@ -95,9 +106,11 @@ class Sensor(IOObjectBase):
         self.__offset += 1
 
         if frame_type != 0x92:
-            LOG.info("Got an unknown frame [%#x]. Skipping it.", frame_type)
+            LOG.info("Got an unknown frame %#x. Skipping it.", frame_type)
+            return
 
         frame = bytes(self._read_buffer)
+
 
         frame_format = b"!QH BB HB"
         self.__check_read_buffer(struct.calcsize(frame_format))
@@ -108,7 +121,7 @@ class Sensor(IOObjectBase):
             struct.unpack_from(frame_format, frame, offset=self.__offset)
         self.__offset += struct.calcsize(frame_format)
 
-        LOG.info("Got a [%#x] frame:", frame_type)
+        LOG.info("Got a %#x frame:", frame_type)
         LOG.info("Source address: %016X.", address)
         LOG.info("Network address: %04X.", network_address)
 
@@ -143,8 +156,26 @@ class Sensor(IOObjectBase):
             analog_mask >>= 1
             analog_mask_shift += 1
 
-        # TODO FIXME
-        assert self.__offset == len(self._read_buffer) - 1 # -1 for checksum
+
+        if self.__offset != len(self._read_buffer) - 1: # -1 for checksum
+            raise _InvalidFrameError("Frame size is too big for its payload.")
+
+
+    def __handle_frame_error(self, error):
+        """Handles a frame error."""
+
+        LOG.error("Error while processing a frame: %s", error)
+
+        frame_delimiter_pos = self._read_buffer.find(chr(_FRAME_DELIMITER), 1)
+
+        if frame_delimiter_pos == -1:
+            self.__skipped_bytes = len(self._read_buffer)
+            self._clear_read_buffer()
+            self.__set_state(_STATE_FIND_FRAME_HEADER)
+        else:
+            LOG.debug("Found a frame delimiter. %s bytes has been skipped.", frame_delimiter_pos)
+            del self._read_buffer[:frame_delimiter_pos]
+            self.__set_state(_STATE_RECV_FRAME_HEADER)
 
 
     def __receive_frame_body(self):
@@ -156,13 +187,17 @@ class Sensor(IOObjectBase):
 
         checksum = 0xFF - ( sum(byte for byte in self._read_buffer[3:-1]) & 0b11111111 )
         frame_checksum = self._read_buffer[-1]
-        # TODO
-        assert checksum == frame_checksum
 
-        self.__handle_frame()
+        try:
+            if checksum != frame_checksum:
+                raise _InvalidFrameError("Frame checksum mismatch.")
 
-        self._clear_read_buffer()
-        self.__set_state(_STATE_RECV_FRAME_HEADER)
+            self.__handle_frame()
+        except _InvalidFrameError as e:
+            self.__handle_frame_error(e)
+        else:
+            self._clear_read_buffer()
+            self.__set_state(_STATE_RECV_FRAME_HEADER)
 
 
     def __receive_frame_header(self):
@@ -178,13 +213,13 @@ class Sensor(IOObjectBase):
         frame_delimiter, self.__frame_size, = struct.unpack(
             header_format, bytes(self._read_buffer))
 
-        # TODO
-        assert frame_delimiter == _FRAME_DELIMITER
+        if frame_delimiter == _FRAME_DELIMITER:
+            self.__offset = header_size
 
-        self.__offset = header_size
-
-        LOG.debug("Got a frame of %s bytes.", self.__frame_size)
-        self.__set_state(_STATE_RECV_FRAME_BODY)
+            LOG.debug("Got a frame of %s bytes.", self.__frame_size)
+            self.__set_state(_STATE_RECV_FRAME_BODY)
+        else:
+            self.__handle_frame_error("Got an invalid frame delimiter.")
 
 
     def __set_state(self, state):
