@@ -13,6 +13,12 @@ from xbee_868.io_loop import IOObjectBase
 _FRAME_DELIMITER = 0x7E
 """XBee 868 frame delimiter."""
 
+_MAX_FRAME_SIZE = 100
+"""
+Maximum frame size limit - just to detect broken frames and not read a lot of
+data which takes a lot of time before we get a checksum mismatch error.
+"""
+
 
 _STATE_FIND_FRAME_HEADER = "find-frame-header"
 """State for finding a frame header."""
@@ -27,11 +33,13 @@ _STATE_RECV_FRAME_BODY = "receive-frame-body"
 LOG = logging.getLogger(__name__)
 
 
+
 class _InvalidFrameError(Error):
     """Invalid frame error."""
 
     def __init__(self, *args, **kwargs):
         super(_InvalidFrameError, self).__init__(*args, **kwargs)
+
 
 
 class Sensor(IOObjectBase):
@@ -209,17 +217,18 @@ class Sensor(IOObjectBase):
         if not self._read(header_size):
             return
 
-        # TODO: limits
         frame_delimiter, self.__frame_size, = struct.unpack(
             header_format, bytes(self._read_buffer))
 
-        if frame_delimiter == _FRAME_DELIMITER:
+        if frame_delimiter != _FRAME_DELIMITER:
+            self.__handle_frame_error("Got an invalid frame delimiter.")
+        elif self.__frame_size > _MAX_FRAME_SIZE:
+            self.__handle_frame_error("Got a too big frame size.")
+        else:
             self.__offset = header_size
 
             LOG.debug("Got a frame of %s bytes.", self.__frame_size)
             self.__set_state(_STATE_RECV_FRAME_BODY)
-        else:
-            self.__handle_frame_error("Got an invalid frame delimiter.")
 
 
     def __set_state(self, state):
