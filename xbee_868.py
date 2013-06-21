@@ -13,15 +13,6 @@ frame_format = "!QHBBHB"
 analog_data_format = "!H"
 
 
-def read_nb(fd, size, all_data):
-    if len(all_data) < size:
-        data = eintr_retry(os.read)(fd, size - len(all_data))
-        if not data:
-            raise Exception("TODO FIXME")
-        all_data.extend(data)
-    return len(all_data) == size
-
-
 from io_loop import IOLoop, IOObjectBase
 
 
@@ -30,16 +21,15 @@ class Sensor(IOObjectBase):
     STATE_RECV_FRAME_BODY = "frame"
 
     def __init__(self, io_loop):
-        # TODO FIXME
-        self.__sensor = self.file = serial.Serial("/dev/ttyUSB0")
+        self.__sensor = serial.Serial("/dev/ttyUSB0")
         self.__sensor.nonblocking()
-        self.__data = bytearray()
+
+        super(Sensor, self).__init__(io_loop, self.__sensor)
+
         self.__state = self.STATE_RECV_FRAME_HEADER
 
         self.__offset = None
         self.__frame_size = None
-
-        io_loop.add_object(self)
 
 
     def poll_read(self):
@@ -52,21 +42,21 @@ class Sensor(IOObjectBase):
         if self.__state == self.STATE_RECV_FRAME_HEADER:
             print "HERE"
             header_format = "!BH"
-            if read_nb(self.__sensor.fileno(), struct.calcsize(header_format), self.__data):
-                frame_delimiter, self.__frame_size = struct.unpack(header_format, bytes(self.__data))
+            if self._read(struct.calcsize(header_format)):
+                frame_delimiter, self.__frame_size = struct.unpack(header_format, bytes(self._read_buffer))
                 print "Frame delimiter:", hex(frame_delimiter)
                 print "Frame size:", hex(self.__frame_size)
                 assert frame_delimiter == 0x7E
-                del self.__data[:]
+                self._clear_read_buffer()
                 self.__state = self.STATE_RECV_FRAME_BODY
         elif self.__state == self.STATE_RECV_FRAME_BODY:
             print "HERE2"
-            if read_nb(self.__sensor.fileno(), self.__frame_size + 1, self.__data):
-                frame = bytes(self.__data)
+            if self._read(self.__frame_size + 1):
+                frame = bytes(self._read_buffer)
                 offset = 0
 
                 assert offset + 1 <= len(frame)
-                frame_type = self.__data[0]
+                frame_type = self._read_buffer[0]
                 offset += 1
                 print "Frame type:", hex(frame_type)
 
@@ -99,12 +89,12 @@ class Sensor(IOObjectBase):
                     analog_mask >>= 1
 
 
-                print "Frame:", " ".join(hex(c) for c in self.__data)
+                print "Frame:", " ".join(hex(c) for c in self._read_buffer)
 
-                checksum = 0xFF - (sum(c for c in self.__data[:offset])) & 0b11111111
+                checksum = 0xFF - (sum(c for c in self._read_buffer[:offset])) & 0b11111111
 
                 assert offset + 1 <= len(frame)
-                frame_checksum = self.__data[offset]
+                frame_checksum = self._read_buffer[offset]
                 offset += 1
 
                 assert offset == len(frame)
@@ -113,7 +103,7 @@ class Sensor(IOObjectBase):
                 print "Checksum:", hex(frame_checksum)
                 assert checksum == frame_checksum
 
-                del self.__data[:]
+                self._clear_read_buffer()
                 self.__state = self.STATE_RECV_FRAME_HEADER
         else:
             TODO

@@ -6,6 +6,7 @@ handling I/O operations.
 
 import errno
 import logging
+import os
 import select
 import socket
 import time
@@ -153,6 +154,9 @@ class IOObjectBase(object):
     """A list of handlers that will be called on object close."""
 
 
+    _read_buffer = None
+
+
     def __init__(self, io_loop, file, session_timeout=None):
         self.io_loop = io_loop
         self.file = file
@@ -160,6 +164,8 @@ class IOObjectBase(object):
 
         if session_timeout is not None:
             self.__timed_out_at = time.time() + session_timeout
+
+        self._read_buffer = bytearray()
 
         self.io_loop.add_object(self)
 
@@ -235,6 +241,20 @@ class IOObjectBase(object):
         """Returns True if the object is timed out."""
 
         return self.__timed_out_at is not None and time.time() >= self.__timed_out_at
+
+
+    def _read(self, size):
+        if len(self._read_buffer) < size:
+            data = eintr_retry(os.read)(self.file.fileno(), size - len(self._read_buffer))
+            if not data:
+                raise Exception("TODO FIXME")
+            self._read_buffer.extend(data)
+        return len(self._read_buffer) == size
+
+    def _clear_read_buffer(self):
+        del self._read_buffer[:]
+
+
 
 
 
