@@ -82,11 +82,8 @@ class Sensor(IOObjectBase):
             LOG.debug("Skip %s bytes...", len(self._read_buffer))
 
 
-    def __receive_frame_body(self):
-        """Receives frame body."""
-
-        if not self._read(self.__offset + self.__frame_size):
-            return
+    def __handle_frame(self):
+        """Handles a frame."""
 
         self.__check_read_buffer(1)
         frame_type = self._read_buffer[self.__offset]
@@ -123,14 +120,25 @@ class Sensor(IOObjectBase):
             #    analog_mask >>= 1
             #frame = bytes(self._read_buffer)
 
-            #assert self.__offset + 1 == len(frame)
+            # TODO FIXME
+            #assert self.__offset == self.__frame_size
         else:
             LOG.info("Got an unknown frame [%#x]. Skipping it.", frame_type)
+
+
+    def __receive_frame_body(self):
+        """Receives frame body."""
+
+        # Receive frame + checksum
+        if not self._read(self.__offset + self.__frame_size + 1):
+            return
 
         checksum = 0xFF - ( sum(byte for byte in self._read_buffer[3:-1]) & 0b11111111 )
         frame_checksum = self._read_buffer[-1]
         # TODO
         assert checksum == frame_checksum
+
+        self.__handle_frame()
 
         self._clear_read_buffer()
         self.__set_state(_STATE_RECV_FRAME_HEADER)
@@ -145,14 +153,13 @@ class Sensor(IOObjectBase):
         if not self._read(header_size):
             return
 
+        # TODO: limits
         frame_delimiter, self.__frame_size, = struct.unpack(
             header_format, bytes(self._read_buffer))
 
         # TODO
         assert frame_delimiter == _FRAME_DELIMITER
 
-        # TODO: limits
-        self.__frame_size += 1 # + checksum
         self.__offset = header_size
 
         LOG.debug("Got a frame of %s bytes.", self.__frame_size)
