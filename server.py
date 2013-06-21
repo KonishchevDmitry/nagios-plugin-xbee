@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import errno
 import os
 import select
@@ -13,7 +15,7 @@ frame_format = "!QHBBHB"
 analog_data_format = "!H"
 
 
-from io_loop import IOLoop, IOObjectBase
+from xbee_868.io_loop import IOLoop, IOObjectBase
 
 
 class Sensor(IOObjectBase):
