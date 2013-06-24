@@ -7,8 +7,9 @@ import json
 import socket
 import struct
 
+from psys import eintr_retry
+
 from xbee_868 import constants
-from xbee_868 import system
 from xbee_868.core import Error
 
 
@@ -30,17 +31,35 @@ def get_stats():
                 raise e
 
         try:
-            size_format = b"!Q"
-            size = system.read(sock.fileno(), struct.calcsize(size_format))
-            size, = struct.unpack(size_format, size)
-            stats = system.read(sock, size)
+            sock.shutdown(socket.SHUT_WR)
+
+            stats = bytearray()
+
+            data = "empty"
+            while data:
+                data = eintr_retry(sock.recv)(constants.BUFSIZE)
+                stats.extend(data)
+
+            stats = bytes(stats)
         except socket.timeout:
             raise Error("The request timed out.")
-        except EOFError:
+
+        size_format = b"!Q"
+        size_length = struct.calcsize(size_format)
+
+        if len(stats) < size_length:
             raise Error("The server rejected the request.")
 
+        size = struct.unpack(size_format, stats)
+
+        if len(stats) < size_length + size:
+            raise Error("The server rejected the request.")
+
+        if len(stats) != size_length + size:
+            raise Error("The server returned a malformed response.")
+
         try:
-            return json.loads(stats)
+            return json.loads(stats[size_length:])
         except ValueError as e:
             raise Error("The server returned an invalid response.")
     except Exception as e:
