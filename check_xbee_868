@@ -1,0 +1,10 @@
+#!/usr/bin/env python
+
+"""Checks XBee 868 sensor."""
+
+import pprint
+
+import xbee_868.client
+
+stats = xbee_868.client.get_stats()
+pprint.pprint(stats)
