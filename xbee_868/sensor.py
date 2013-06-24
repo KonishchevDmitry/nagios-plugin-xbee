@@ -2,7 +2,9 @@
 
 from __future__ import unicode_literals
 
+import errno
 import logging
+import os
 import struct
 import serial
 
@@ -30,6 +32,10 @@ _STATE_RECV_FRAME_BODY = "receive-frame-body"
 """State for receiving a frame body."""
 
 
+# TODO
+_SENSORS = {}
+
+
 LOG = logging.getLogger(__name__)
 
 
@@ -42,21 +48,27 @@ class _InvalidFrameError(Error):
 
 
 
-class Sensor(IOObjectBase):
+class _Sensor(IOObjectBase):
     """Represents a XBee 868 sensor."""
 
-    def __init__(self, io_loop):
+    def __init__(self, io_loop, device):
         # TODO
-        self.__sensor = serial.Serial("/dev/ttyUSB0")
+        self.__sensor = serial.Serial(device)
         self.__sensor.nonblocking()
 
-        super(Sensor, self).__init__(io_loop, self.__sensor)
+        super(_Sensor, self).__init__(io_loop, self.__sensor)
 
         self.__skipped_bytes = 0
         self.__offset = None
         self.__frame_size = None
 
         self.__set_state(_STATE_FIND_FRAME_HEADER)
+        # TODO
+        _SENSORS[device] = self
+        def remove_from_sensors():
+            if device in _SENSORS:
+                del _SENSORS[device]
+        self.add_on_close_handler(remove_from_sensors)
 
 
     def on_read(self):
@@ -244,3 +256,39 @@ class Sensor(IOObjectBase):
             raise LogicalError()
 
         self.__state = state
+
+
+
+# TODO
+def connect(io_loop):
+    """Connects to XBee 868 devices."""
+
+    device_name = "XBee 868"
+
+    LOG.debug("Looking for %s devices...", device_name)
+
+    devices = []
+    device_directory = "/dev/serial/by-id"
+
+    try:
+        for device in os.listdir(device_directory):
+            if "xbib-u-ss" in device.lower():
+                devices.append(os.path.join(device_directory, device))
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            LOG.error("There is no any connected serial device.")
+        else:
+            LOG.error("Unable to list connected serial devices: {0}.", e.strerror)
+    else:
+        for device in devices:
+            if device not in _SENSORS:
+                LOG.debug("Connecting to %s...", device)
+
+                try:
+                    _Sensor(io_loop, device)
+                except Exception as e:
+                    LOG.error("Failed to connect to %s: %s", device_name, e)
+
+        if not devices and not _SENSORS:
+            LOG.error("There is no any connected %s device.", device_name)
+

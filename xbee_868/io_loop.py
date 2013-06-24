@@ -4,6 +4,7 @@ Provides a main loop for handling I/O operations and various base classes for
 handling I/O operations.
 """
 
+import bisect
 import errno
 import logging
 import os
@@ -21,6 +22,7 @@ LOG = logging.getLogger(__name__)
 class IOLoop(object):
     """Main loop for handling I/O operations."""
 
+    # TODO FIXME
     __epoll = None
     """A epoll object."""
 
@@ -31,6 +33,7 @@ class IOLoop(object):
     def __init__(self):
         self.__objects = {}
         self.__epoll = select.epoll()
+        self.__activate_at = []
 
 
     def __del__(self):
@@ -48,6 +51,15 @@ class IOLoop(object):
 
         self.__objects[obj.file.fileno()] = obj
 
+
+    def call(self, func, *args, **kwargs):
+        self.call_at(0, func, *args, **kwargs)
+    def call_after(self, timeout, func, *args, **kwargs):
+        self.call_at(time.time() + timeout, func, *args, **kwargs)
+    def call_at(self, activate_time, func, *args, **kwargs):
+        self.__activate_at.insert(
+            bisect.bisect([task[0] for task in self.__activate_at], activate_time),
+            (activate_time, func, args, kwargs))
 
     def remove_object(self, obj):
         """Removes an object from the list of polling objects."""
@@ -95,10 +107,15 @@ class IOLoop(object):
                     self.__epoll.modify(fd, cur_flags)
                     obj.epoll_flags = cur_flags
 
-            if not self.__objects:
-                break
+#            if not self.__objects:
+#                break
 
-            for fd, flags in self.__epoll.poll(timeout=precision):
+            timeout = -1
+            if self.__activate_at:
+                timeout = max(0, self.__activate_at[0][0] - time.time())
+
+#            LOG.debug(timeout)
+            for fd, flags in self.__epoll.poll(timeout=timeout):
                 obj = self.__objects.get(fd)
                 if obj is None:
                     continue
@@ -110,6 +127,19 @@ class IOLoop(object):
                 if flags & write_flags:
                     if not obj.closed():
                         obj.on_write()
+
+            drop_index = None
+            cur_time = time.time()
+            for task_id, task in enumerate(self.__activate_at):
+                if task[0] <= cur_time:
+                    drop_index = task_id
+                    # TODO: dicts + exceptions
+                    task[1](*task[2], **task[3])
+                else:
+                    break
+
+            if drop_index is not None:
+                del self.__activate_at[:drop_index + 1]
 
 
 #	def should_stop(self):
