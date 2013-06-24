@@ -19,7 +19,7 @@ from xbee_868.core import Error, LogicalError
 LOG = logging.getLogger(__name__)
 
 
-class IOLoop(object):
+class IoLoop(object):
     """Main loop for handling I/O operations."""
 
     # TODO FIXME
@@ -165,7 +165,7 @@ class IOLoop(object):
 
 
 
-class FileBase(object):
+class FileObject(object):
     """Wraps a main loop object."""
 
     io_loop = None
@@ -314,12 +314,3 @@ class FileBase(object):
         return not self._write_buffer
     def _clear_read_buffer(self):
         del self._read_buffer[:]
-
-
-
-class SocketBase(FileBase):
-    """A base class for handling sockets."""
-
-    def __init__(self, io_loop, sock):
-        sock.setblocking(False)
-        super(SocketBase, self).__init__(io_loop, sock)

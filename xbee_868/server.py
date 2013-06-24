@@ -12,16 +12,17 @@ from psys import eintr_retry
 import xbee_868.stats
 
 from xbee_868 import constants
-from xbee_868.io_loop import SocketBase
+from xbee_868.io_loop import FileObject
 
 LOG = logging.getLogger(__name__)
 
 
-class Server(SocketBase):
+class Server(FileObject):
     def __init__(self, io_loop):
         self.__client_id = 0
 
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.setblocking(False)
 
         try:
             try:
@@ -60,9 +61,10 @@ class Server(SocketBase):
         return True
 
 
-class _Client(SocketBase):
+class _Client(FileObject):
     def __init__(self, io_loop, sock, client_id):
         self.__client_id = client_id
+        sock.setblocking(False)
 
         super(_Client, self).__init__(io_loop, sock)
 

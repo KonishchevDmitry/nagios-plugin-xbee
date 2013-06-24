@@ -9,7 +9,7 @@ import struct
 import serial
 
 from xbee_868.core import Error, LogicalError
-from xbee_868.io_loop import FileBase
+from xbee_868.io_loop import FileObject
 
 
 _FRAME_DELIMITER = 0x7E
@@ -48,7 +48,7 @@ class _InvalidFrameError(Error):
 
 
 
-class _Sensor(FileBase):
+class _Sensor(FileObject):
     """Represents a XBee 868 sensor."""
 
     def __init__(self, io_loop, device):
