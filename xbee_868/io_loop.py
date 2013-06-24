@@ -172,6 +172,7 @@ class IOObjectBase(object):
 
 
     _read_buffer = None
+    _write_buffer = None
 
 
     def __init__(self, io_loop, file, session_timeout=None):
@@ -225,6 +226,16 @@ class IOObjectBase(object):
         return self.file is None
 
 
+    def on_read(self):
+        """Called when we have data to read."""
+
+        TODO
+
+    def on_write(self):
+        """Called when we are able to write."""
+
+        TODO
+
     def poll_read(self):
         """Returns True if we need to poll the file for read availability."""
 
@@ -232,7 +243,7 @@ class IOObjectBase(object):
 
 
     def poll_write(self):
-        """Returns True if we need to poll the socket for write availability."""
+        """Returns True if we need to poll the file for write availability."""
 
         return False
 
@@ -269,6 +280,14 @@ class IOObjectBase(object):
             self._read_buffer.extend(data)
         return len(self._read_buffer) == size
 
+    def _write(self):
+        if self._write_buffer:
+            # TODO: EWOULDBLOCK
+            size = eintr_retry(os.write)(self.file.fileno(), self._write_buffer)
+            if size:
+                del self._write_buffer[:size + 1]
+
+        return not self._write_buffer
     def _clear_read_buffer(self):
         del self._read_buffer[:]
 
@@ -276,7 +295,7 @@ class IOObjectBase(object):
 
 
 
-class TCPSockBase(IOObjectBase):
+class SocketBase(IOObjectBase):
     """A base class for handling TCP sockets."""
 
     def __init__(self, io_loop, sock, *args, **kwargs):
@@ -284,7 +303,7 @@ class TCPSockBase(IOObjectBase):
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setblocking(False)
 
-        super(TCPSockBase, self).__init__(io_loop, sock, *args, **kwargs)
+        super(SocketBase, self).__init__(io_loop, sock, *args, **kwargs)
 
 
     def get_errno(self):
@@ -332,22 +351,11 @@ class TCPSockBase(IOObjectBase):
 
 
 
-class TCPAcceptor(TCPSockBase):
+class AcceptingSocket(SocketBase):
     """A base class for accepting TCP connections."""
 
-    def __init__(self, io_loop, port=None, sock=None):
-        if (port is None) + (sock is None) != 1:
-            raise LogicalError()
-
-        super(TCPAcceptor, self).__init__(io_loop, sock)
-
-        try:
-            if port is not None:
-                self._bind(port)
-                self._listen()
-        except:
-            self.close()
-            raise
+    def __init__(self, io_loop, sock=None):
+        super(AcceptingSocket, self).__init__(io_loop, sock)
 
 
     def on_error(self, e):
