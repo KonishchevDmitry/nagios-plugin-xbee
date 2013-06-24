@@ -53,13 +53,17 @@ class IOLoop(object):
 
 
     def call(self, func, *args, **kwargs):
-        self.call_at(0, func, *args, **kwargs)
+        return self.call_at(0, func, *args, **kwargs)
     def call_after(self, timeout, func, *args, **kwargs):
-        self.call_at(time.time() + timeout, func, *args, **kwargs)
+        return self.call_at(time.time() + timeout, func, *args, **kwargs)
     def call_at(self, activate_time, func, *args, **kwargs):
+        call = (activate_time, func, args, kwargs)
         self.__activate_at.insert(
             bisect.bisect([task[0] for task in self.__activate_at], activate_time),
-            (activate_time, func, args, kwargs))
+            call)
+        return call
+    def cancel_call(self, task):
+        self.__activate_at = [ t for t in self.__activate_at if task is not t ]
 
     def remove_object(self, obj):
         """Removes an object from the list of polling objects."""
@@ -114,7 +118,6 @@ class IOLoop(object):
             if self.__activate_at:
                 timeout = max(0, self.__activate_at[0][0] - time.time())
 
-#            LOG.debug(timeout)
             for fd, flags in self.__epoll.poll(timeout=timeout):
                 obj = self.__objects.get(fd)
                 if obj is None:
@@ -128,18 +131,31 @@ class IOLoop(object):
                     if not obj.closed():
                         obj.on_write()
 
+                # TODO
+                if flags & select.EPOLLHUP:
+                    if not obj.closed():
+                        obj.on_hang_up()
+
+                # TODO
+                if flags & select.EPOLLERR:
+                    if not obj.closed():
+                        # TODO
+                        obj.on_error()
+
             drop_index = None
             cur_time = time.time()
-            for task_id, task in enumerate(self.__activate_at):
+            for task_id, task in enumerate(self.__activate_at[:]):
                 if task[0] <= cur_time:
                     drop_index = task_id
-                    # TODO: dicts + exceptions
-                    task[1](*task[2], **task[3])
                 else:
                     break
 
             if drop_index is not None:
+                calls = self.__activate_at[:drop_index + 1]
                 del self.__activate_at[:drop_index + 1]
+                for task in calls:
+                    # TODO: dicts + exceptions
+                    task[1](*task[2], **task[3])
 
 
 #	def should_stop(self):
@@ -149,7 +165,7 @@ class IOLoop(object):
 
 
 
-class IOObjectBase(object):
+class FileBase(object):
     """Wraps a main loop object."""
 
     io_loop = None
@@ -184,6 +200,7 @@ class IOObjectBase(object):
             self.__timed_out_at = time.time() + session_timeout
 
         self._read_buffer = bytearray()
+        self._write_buffer = bytearray()
 
         self.io_loop.add_object(self)
 
@@ -225,6 +242,10 @@ class IOObjectBase(object):
 
         return self.file is None
 
+
+    def on_error(self):
+
+        TODO
 
     def on_read(self):
         """Called when we have data to read."""
@@ -280,7 +301,10 @@ class IOObjectBase(object):
             self._read_buffer.extend(data)
         return len(self._read_buffer) == size
 
-    def _write(self):
+    def _write(self, data=None):
+        if data is not None:
+            self._write_buffer.extend(data)
+
         if self._write_buffer:
             # TODO: EWOULDBLOCK
             size = eintr_retry(os.write)(self.file.fileno(), self._write_buffer)
@@ -293,92 +317,9 @@ class IOObjectBase(object):
 
 
 
+class SocketBase(FileBase):
+    """A base class for handling sockets."""
 
-
-class SocketBase(IOObjectBase):
-    """A base class for handling TCP sockets."""
-
-    def __init__(self, io_loop, sock, *args, **kwargs):
-        if sock is None:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    def __init__(self, io_loop, sock):
         sock.setblocking(False)
-
-        super(SocketBase, self).__init__(io_loop, sock, *args, **kwargs)
-
-
-    def get_errno(self):
-        """Returns current socket error."""
-
-        try:
-            return self.file.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
-        except EnvironmentError as e:
-            return e.errno
-
-
-    def _accept(self):
-        """Accepts a TCP connection."""
-
-        try:
-            return eintr_retry(self.file.accept)()
-        except EnvironmentError as e:
-            if e.errno == errno.ECONNABORTED:
-                pass
-            else:
-                raise
-
-
-    def _bind(self, port):
-        """Binds the socket to the specified port."""
-
-        self.file.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.file.bind(( "0.0.0.0", port ))
-
-
-    def _connect(self, *args):
-        """Connects to the specified host."""
-
-        try:
-            eintr_retry(self.file.connect)(*args)
-        except EnvironmentError as e:
-            if e.errno != errno.EINPROGRESS:
-                raise
-
-
-    def _listen(self):
-        """Makes the socket listening."""
-
-        self.file.listen(config.LISTEN_BACKLOG)
-
-
-
-class AcceptingSocket(SocketBase):
-    """A base class for accepting TCP connections."""
-
-    def __init__(self, io_loop, sock=None):
-        super(AcceptingSocket, self).__init__(io_loop, sock)
-
-
-    def on_error(self, e):
-        """Called on error."""
-
-        LOG.error("Error while handling a listening connection: %s.", e)
-        self.close()
-
-
-    def on_read(self):
-        """Called when we have data to read."""
-
-        try:
-            connection = self._accept()
-        except Exception as e:
-            LOG.error("Unable to accept a connection: %s.", e)
-            self.close()
-        else:
-            if connection is not None:
-                self.connection_accepted(*connection)
-
-
-    def poll_read(self):
-        """Returns True if we need to poll the socket for read availability."""
-
-        return True
+        super(SocketBase, self).__init__(io_loop, sock)
