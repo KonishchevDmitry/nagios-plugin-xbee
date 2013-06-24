@@ -50,7 +50,7 @@ def get_stats():
         if len(stats) < size_length:
             raise Error("The server rejected the request.")
 
-        size = struct.unpack(size_format, stats)
+        size, = struct.unpack_from(size_format, stats)
 
         if len(stats) < size_length + size:
             raise Error("The server rejected the request.")
