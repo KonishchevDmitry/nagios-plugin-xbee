@@ -19,7 +19,8 @@ from xbee_868.core import Error, LogicalError
 
 import xbee_868.log
 import xbee_868.sensor
-from xbee_868.io_loop import IOLoop, AcceptingSocket, SocketBase
+from xbee_868.server import Server
+from xbee_868.io_loop import IOLoop
 
 
 # TODO
@@ -31,44 +32,11 @@ LOG = logging.getLogger(__name__)
 # fcntl.fcntl(self.fd, FCNTL.F_SETFL, os.O_NONBLOCK)
 
 
-class ClientConnection(SocketBase):
-    def __init__(self, io_loop, sock):
-        super(ClientConnection, self).__init__(io_loop, sock)
-        self._write_buffer = bytearray(struct.pack("!Q", 7) + b"{\"a\":3}")
-
-
-    # TODO TIMEOUT
-    def on_write(self):
-        """Called when we are able to write."""
-
-        if self._write():
-            self.close()
-
-
-    def poll_write(self):
-        """Returns True if we need to poll the file for write availability."""
-
-        return True
-
-
-class ServerSocket(AcceptingSocket):
-    def __init__(self, io_loop):
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        # TODO
-        os.unlink(constants.SERVER_SOCKET_PATH)
-        sock.bind(constants.SERVER_SOCKET_PATH)
-        # TODO
-        sock.listen(100)
-        super(ServerSocket, self).__init__(io_loop, sock)
-    def connection_accepted(self, sock, addr):
-        ClientConnection(self.io_loop, sock)
-
-
 class MainLoop(IOLoop):
     def __init__(self):
         super(MainLoop, self).__init__()
         self.__sensors = {}
-        ServerSocket(self)
+        Server(self)
         self.call(self.__connect_to_sensors)
 
 
