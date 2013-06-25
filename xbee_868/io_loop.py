@@ -198,8 +198,6 @@ class IoLoop(object):
         if self.__deferred_calls:
             timeout = max(0, self.__deferred_calls[0].time - time.time())
 
-        # TODO
-        LOG.debug("Sleep with %s timeout...", timeout)
         for fd, flags in eintr_retry(self.__epoll.poll)(timeout=timeout):
             try:
                 obj = self.__objects[fd]
@@ -207,6 +205,14 @@ class IoLoop(object):
                 continue
 
             try:
+                if flags & EPOLLERR:
+                    if not obj.closed():
+                        obj.on_error(Error("Disconnected."))
+
+                if flags & EPOLLHUP:
+                    if not obj.closed():
+                        obj.on_hang_up()
+
                 if flags & EPOLLIN:
                     if not obj.closed():
                         obj.on_read()
@@ -214,16 +220,8 @@ class IoLoop(object):
                 if flags & EPOLLOUT:
                     if not obj.closed():
                         obj.on_write()
-
-                if flags & EPOLLHUP:
-                    if not obj.closed():
-                        obj.on_hang_up()
-
-                if flags & EPOLLERR:
-                    if not obj.closed():
-                        obj.on_error(Error("epoll returned an error state."))
             except Exception as e:
-                if not isinstance(e, OSError):
+                if not isinstance(e, (OSError, EOFError)):
                     LOG.exception("%s handling crashed.", obj)
 
                 obj.on_error(e)
@@ -405,9 +403,7 @@ class FileObject(object):
             try:
                 data = eintr_retry(os.read)(self.fileno(), size - len(self._read_buffer))
             except OSError as e:
-                if e.errno == errno.EWOULDBLOCK:
-                    pass
-                else:
+                if e.errno != errno.EWOULDBLOCK:
                     raise
             else:
                 if not data:
