@@ -110,14 +110,20 @@ class IoLoop(object):
     def start(self):
         """Starts the I/O loop."""
 
+        LOG.debug("Start the I/O loop.")
+
         while self.__objects or self.__deferred_calls:
             self.__update_epoll_flags()
             self.__poll_objects()
             self.__process_deferred_calls()
 
+        LOG.debug("The I/O loop stopped.")
+
 
     def stop(self):
         """Stops the I/O loop."""
+
+        LOG.debug("Stopping the I/O loop...")
 
         for obj in self.__objects:
             try:
@@ -154,6 +160,8 @@ class IoLoop(object):
         if self.__deferred_calls:
             timeout = max(0, self.__deferred_calls[0].time - time.time())
 
+        # TODO
+        LOG.debug("Sleep with %s timeout...", timeout)
         for fd, flags in self.__epoll.poll(timeout=timeout):
             try:
                 obj = self.__objects[fd]
