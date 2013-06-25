@@ -37,6 +37,15 @@ class IoLoop(object):
         self.__epoll = select.epoll()
 
 
+    def __enter__(self):
+        return self
+
+
+    def __exit__(self, *args, **kwargs):
+        self.close()
+        return False
+
+
     def close(self):
         """Closes the object."""
 
@@ -110,7 +119,7 @@ class IoLoop(object):
     def start(self):
         """Starts the I/O loop."""
 
-        LOG.debug("Start the I/O loop.")
+        LOG.debug("Starting the I/O loop...")
 
         while self.__objects or self.__deferred_calls:
             self.__update_epoll_flags()
