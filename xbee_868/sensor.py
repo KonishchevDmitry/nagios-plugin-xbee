@@ -1,3 +1,4 @@
+# TODO
 """Contains all logic for communication with XBee 868."""
 
 from __future__ import unicode_literals
@@ -6,7 +7,7 @@ import errno
 import logging
 import os
 import struct
-import serial
+#import serial
 
 from xbee_868.core import Error, LogicalError
 from xbee_868.io_loop import FileObject
