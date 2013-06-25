@@ -32,12 +32,13 @@ LOG = logging.getLogger(__name__)
 # fcntl.fcntl(self.fd, FCNTL.F_SETFL, os.O_NONBLOCK)
 
 
+
 class MainLoop(IoLoop):
     def __init__(self):
         super(MainLoop, self).__init__()
         self.__sensors = {}
         Server(self)
-        self.call_next(self.__connect_to_sensors)
+        #self.call_next(self.__connect_to_sensors)
 
 
 
@@ -49,19 +50,14 @@ class MainLoop(IoLoop):
             self.call_after(5, self.__connect_to_sensors)
 
 
-xbee_868.log.setup(debug_mode=True)
-LOG.info("Staring the daemon...")
+def main():
+    xbee_868.log.setup(debug_mode=False)
+    LOG.info("Staring the daemon...")
 
-io_loop = MainLoop()
-#connect(io_loop)
-io_loop.start()
-io_loop.close()
-#poll = psys.poll.Poll()
-#poll.register(sensor.fileno(), poll.POLLIN)
+    io_loop = MainLoop()
+    io_loop.start()
+    io_loop.close()
 
-#try:
-#    while True:
-#        for fd, epoll_flags in poll.poll():
-#            sensor.on_read()
-#finally:
-#    poll.close()
+
+if __name__ == "__main__":
+    main()
