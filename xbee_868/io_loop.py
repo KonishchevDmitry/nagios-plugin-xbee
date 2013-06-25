@@ -60,7 +60,7 @@ class IoLoop(object):
             obj.close()
 
         # Break possible cycle references
-        self.__deferred_calls.clear()
+        del self.__deferred_calls[:]
 
         try:
             eintr_retry(self.__epoll.close)()
