@@ -9,53 +9,47 @@ import os
 import socket
 import struct
 
-from pcore import str, bytes
 from psys import eintr_retry
 
 import xbee_868.stats
 
 from xbee_868 import constants
+from xbee_868.core import Error
 from xbee_868.io_loop import FileObject
 
 LOG = logging.getLogger(__name__)
 
 
 class Server(FileObject):
+    """The monitor server socket."""
+
     def __init__(self, io_loop):
         self.__client_id = 0
 
+        path = constants.SERVER_SOCKET_PATH
+        LOG.info("Listening to client connections at '%s'...", path)
+
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.setblocking(False)
 
         try:
             try:
-                os.unlink(constants.SERVER_SOCKET_PATH)
+                os.unlink(path)
             except OSError as e:
                 if e.errno != errno.ENOENT:
-                    raise
+                    raise Error("Unable to delete '{0}': {1}.", path, e.strerror)
 
-            sock.bind(constants.SERVER_SOCKET_PATH)
-            sock.listen(100)
+            sock.setblocking(False)
 
-            super(Server, self).__init__(io_loop, sock, "TODO")
+            try:
+                sock.bind(path)
+                sock.listen(128)
+            except OSError as e:
+                raise Error("Unable to create a UNIX socket '{0}': {1}.", path, e.strerror)
+
+            super(Server, self).__init__(io_loop, sock, "Monitor's server socket")
         except:
             sock.close()
             raise
-
-
-    def on_read(self):
-        """Called when we have data to read."""
-
-        try:
-            connection = eintr_retry(self._file.accept)()
-        except OSError as e:
-            if e.errno != errno.ECONNABORTED:
-                LOG.error("Unable to accept a connection: %s.", e)
-                self.close()
-        else:
-            self.__client_id += 1
-            LOG.debug("Accepting a new client connection #%s...", self.__client_id)
-            _Client(self._weak_io_loop(), connection[0], self.__client_id)
 
 
     def poll_read(self):
@@ -64,39 +58,72 @@ class Server(FileObject):
         return True
 
 
+    def on_read(self):
+        """Called when we have data to read."""
+
+        try:
+            connection = eintr_retry(self._file.accept)()[0]
+        except OSError as e:
+            if e.errno != errno.ECONNABORTED:
+                LOG.error("Unable to accept a connection: %s.", e)
+        else:
+            connection_name = "Client connection #{0}".format(self.__client_id)
+            self.__client_id += 1
+
+            LOG.debug("Accepting a new %s...", connection_name)
+
+            try:
+                _Client(self._weak_io_loop(), connection, connection_name)
+            except Exception as e:
+                LOG.error("Failed to accept %s: %s.", connection_name, e)
+                connection.close()
+
+
+    def stop(self):
+        """Called when the I/O loop ends its work."""
+
+        self.close()
+
+
+
 class _Client(FileObject):
-    def __init__(self, io_loop, sock, client_id):
-        self.__client_id = client_id
+    """A client connection socket."""
+
+    def __init__(self, io_loop, sock, name):
         sock.setblocking(False)
+        super(_Client, self).__init__(io_loop, sock, name)
 
-        super(_Client, self).__init__(io_loop, sock, "TODO")
+        try:
+            LOG.info("Sending sensor statistics to %s...", self)
 
-        LOG.debug("Sending sensor statistics to client #%s...", self.__client_id)
-        stats = json.dumps(xbee_868.stats.get()).encode("utf-8")
-        self._write(struct.pack(b"!Q", len(stats)) + stats)
+            stats = json.dumps(xbee_868.stats.get()).encode("utf-8")
+            message = struct.pack(b"!Q", len(stats)) + stats
 
-        # TODO
-        call = io_loop.call_after(1, self.__on_timed_out)
-        self.add_on_close_handler(lambda: io_loop.cancel_call(call))
-
-
-    def __on_timed_out(self):
-        LOG.debug("Client #%s timed out.", self.__client_id)
-        self.close()
-
-    def on_hang_up(self):
-        LOG.debug("Client #%s closed the connection.", self.__client_id)
-        self.close()
-
-    def on_write(self):
-        """Called when we are able to write."""
-
-        if self._write():
-            LOG.debug("All statistics data has been successfully sent to client #%s.", self.__client_id)
+            if self._write(message):
+                self.close()
+            else:
+                self.add_deferred_call(
+                    io_loop.call_after(constants.IPC_TIMEOUT, self.__on_timed_out))
+        except Exception:
             self.close()
+            raise
 
 
     def poll_write(self):
         """Returns True if we need to poll the file for write availability."""
 
         return True
+
+
+    def on_write(self):
+        """Called when we are able to write."""
+
+        if self._write():
+            self.close()
+
+
+    def __on_timed_out(self):
+        """Called on request timeout."""
+
+        LOG.warning("%s timed out.", self)
+        self.close()

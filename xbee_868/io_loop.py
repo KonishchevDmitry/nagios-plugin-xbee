@@ -198,9 +198,10 @@ class IoLoop(object):
             return
 
         cur_time = time.time()
+        precision = 0.001
 
         for call_id in range(len(self.__deferred_calls)):
-            if self.__deferred_calls[call_id].time > cur_time:
+            if self.__deferred_calls[call_id].time - precision > cur_time:
                 pending_calls = self.__deferred_calls[:call_id]
                 del self.__deferred_calls[:call_id]
                 break
@@ -325,6 +326,20 @@ class FileObject(object):
         """Adds a handler that will be called on object close."""
 
         self.__on_close_handlers.append(handler)
+
+
+    def add_deferred_call(self, call):
+        """
+        Associates a deferred call with this object to cancel it on object
+        close.
+        """
+
+        def cancel_call():
+            io_loop = self._weak_io_loop()
+            if io_loop is not None:
+                io_loop.cancel_call(call)
+
+        self.add_on_close_handler(cancel_call)
 
 
     def stop(self):
