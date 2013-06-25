@@ -1,1 +1,1 @@
-"""XBee 868 Nagios plugin helper modules."""
+"""XBee 868 monitor and Nagios plugin helper modules."""
