@@ -1,8 +1,10 @@
+from pcore import str
+
 class Error(Exception):
     """The base class for all exceptions that our code throws."""
 
     def __init__(self, error, *args):
-        Exception.__init__(self, unicode(error).format(*args) if len(args) else unicode(str(error)))
+        Exception.__init__(self, str(error).format(*args) if len(args) else str(error))
         self.code = "Error"
 
 
