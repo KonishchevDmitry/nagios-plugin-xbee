@@ -125,7 +125,7 @@ class IoLoop(object):
 
         LOG.debug("Stopping the I/O loop...")
 
-        for obj in self.__objects:
+        for obj in list(self.__objects.values()):
             try:
                 obj.stop()
             except Exception:
@@ -162,7 +162,7 @@ class IoLoop(object):
 
         # TODO
         LOG.debug("Sleep with %s timeout...", timeout)
-        for fd, flags in self.__epoll.poll(timeout=timeout):
+        for fd, flags in eintr_retry(self.__epoll.poll)(timeout=timeout):
             try:
                 obj = self.__objects[fd]
             except KeyError:
