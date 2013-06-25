@@ -22,16 +22,31 @@ class _MainLoop(xbee_868.io_loop.IoLoop):
 
     def __init__(self):
         super(_MainLoop, self).__init__()
-        self.__sensors = {}
-        xbee_868.server.Server(self)
-#        self.call_next(self.__connect_to_sensors)
-#
-#
-#    def __connect_to_sensors(self):
-#        try:
+
+        try:
+            xbee_868.server.Server(self)
+            self.__deferred_call = self.call_next(self.__connect_to_sensors)
+        except:
+            self.close()
+            raise
+
+
+    def stop(self):
+        """Stops the I/O loop."""
+
+        self.cancel_call(self.__deferred_call)
+        super(_MainLoop, self).stop()
+
+
+    def __connect_to_sensors(self):
+        """Connects to XBee 868 devices."""
+
+        try:
+            # TODO
+            pass
 #            xbee_868.sensor.connect(self)
-#        finally:
-#            self.call_after(5, self.__connect_to_sensors)
+        finally:
+            self.__deferred_call = self.call_after(5, self.__connect_to_sensors)
 
 
 

@@ -48,7 +48,7 @@ class Server(FileObject):
 
             super(Server, self).__init__(io_loop, sock, "Monitor's server socket")
         except:
-            sock.close()
+            eintr_retry(sock.close())
             raise
 
 
@@ -76,7 +76,7 @@ class Server(FileObject):
                 _Client(self._weak_io_loop(), connection, connection_name)
             except Exception as e:
                 LOG.error("Failed to accept %s: %s.", connection_name, e)
-                connection.close()
+                eintr_retry(connection.close())
 
 
     def stop(self):

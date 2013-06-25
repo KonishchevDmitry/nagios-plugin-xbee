@@ -35,6 +35,7 @@ class IoLoop(object):
         self.__deferred_calls = []
 
         self.__epoll = select.epoll()
+        self.__closed = False
 
 
     def __enter__(self):
@@ -49,12 +50,29 @@ class IoLoop(object):
     def close(self):
         """Closes the object."""
 
-        eintr_retry(self.__epoll.close)()
+        if self.__closed:
+            return
+
+        self.__closed = True
+
+        # Detach all objects
+        for obj in list(self.__objects.values()):
+            obj.close()
+
+        # Break possible cycle references
+        self.__deferred_calls.clear()
+
+        try:
+            eintr_retry(self.__epoll.close)()
+        except Exception as e:
+            LOG.error("Failed to close a epoll object: %s.", e)
 
 
 
     def add_object(self, obj):
         """Adds an object to the list of polled objects."""
+
+        self.__ensure_not_closed()
 
         try:
             self.__epoll.register(obj.fileno(), 0)
@@ -85,6 +103,8 @@ class IoLoop(object):
 
     def call_at(self, call_time, func, *args, **kwargs):
         """Schedule a deferred call."""
+
+        self.__ensure_not_closed()
 
         call = _DeferCall(call_time, lambda: func(*args, **kwargs))
 
@@ -119,6 +139,8 @@ class IoLoop(object):
     def start(self):
         """Starts the I/O loop."""
 
+        self.__ensure_not_closed()
+
         LOG.debug("Starting the I/O loop...")
 
         while self.__objects or self.__deferred_calls:
@@ -140,6 +162,13 @@ class IoLoop(object):
             except Exception:
                 LOG.exception("Failed to stop %s.", obj)
 
+
+
+    def __ensure_not_closed(self):
+        """Ensures that the I/O loop is not closed."""
+
+        if self.__closed:
+            raise Error("The I/O loop is closed.")
 
 
     def __update_epoll_flags(self):
