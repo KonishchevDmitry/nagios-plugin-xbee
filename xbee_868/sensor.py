@@ -48,6 +48,7 @@ class _InvalidFrameError(Error):
 
 
 
+# TODO: EOFError
 class _Sensor(FileObject):
     """Represents a XBee 868 sensor."""
 

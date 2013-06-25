@@ -1,5 +1,7 @@
 """XBee 868 monitor's server module."""
 
+from __future__ import unicode_literals
+
 import errno
 import json
 import logging
@@ -7,6 +9,7 @@ import os
 import socket
 import struct
 
+from pcore import str, bytes
 from psys import eintr_retry
 
 import xbee_868.stats
@@ -34,7 +37,7 @@ class Server(FileObject):
             sock.bind(constants.SERVER_SOCKET_PATH)
             sock.listen(100)
 
-            super(Server, self).__init__(io_loop, sock)
+            super(Server, self).__init__(io_loop, sock, "TODO")
         except:
             sock.close()
             raise
@@ -44,7 +47,7 @@ class Server(FileObject):
         """Called when we have data to read."""
 
         try:
-            connection = eintr_retry(self.file.accept)()
+            connection = eintr_retry(self._file.accept)()
         except OSError as e:
             if e.errno != errno.ECONNABORTED:
                 LOG.error("Unable to accept a connection: %s.", e)
@@ -52,7 +55,7 @@ class Server(FileObject):
         else:
             self.__client_id += 1
             LOG.debug("Accepting a new client connection #%s...", self.__client_id)
-            _Client(self.io_loop, connection[0], self.__client_id)
+            _Client(self._weak_io_loop(), connection[0], self.__client_id)
 
 
     def poll_read(self):
@@ -66,11 +69,11 @@ class _Client(FileObject):
         self.__client_id = client_id
         sock.setblocking(False)
 
-        super(_Client, self).__init__(io_loop, sock)
+        super(_Client, self).__init__(io_loop, sock, "TODO")
 
         LOG.debug("Sending sensor statistics to client #%s...", self.__client_id)
-        stats = json.dumps(xbee_868.stats.get())
-        self._write(struct.pack("!Q", len(stats)) + stats)
+        stats = json.dumps(xbee_868.stats.get()).encode("utf-8")
+        self._write(struct.pack(b"!Q", len(stats)) + stats)
 
         # TODO
         call = io_loop.call_after(1, self.__on_timed_out)
@@ -80,11 +83,6 @@ class _Client(FileObject):
     def __on_timed_out(self):
         LOG.debug("Client #%s timed out.", self.__client_id)
         self.close()
-
-    def close(self):
-        if not self.closed():
-            LOG.debug("Closing connection with client #%s.", self.__client_id)
-            super(_Client, self).close()
 
     def on_hang_up(self):
         LOG.debug("Client #%s closed the connection.", self.__client_id)

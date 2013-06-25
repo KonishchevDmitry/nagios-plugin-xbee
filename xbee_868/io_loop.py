@@ -1,20 +1,22 @@
-# TODO FIXME
-"""
-Provides a main loop for handling I/O operations and various base classes for
-handling I/O operations.
-"""
+"""Provides a I/O main loop framework."""
+
+from __future__ import unicode_literals
 
 import bisect
 import errno
 import logging
 import os
 import select
-import socket
 import time
+import weakref
 
+from collections import namedtuple
+from select import EPOLLIN, EPOLLOUT, EPOLLHUP, EPOLLERR
+
+from pcore import PY3, range
 from psys import eintr_retry
-from xbee_868.core import Error, LogicalError
 
+from xbee_868.core import Error
 
 LOG = logging.getLogger(__name__)
 
@@ -22,240 +24,254 @@ LOG = logging.getLogger(__name__)
 class IoLoop(object):
     """Main loop for handling I/O operations."""
 
-    # TODO FIXME
-    __epoll = None
-    """A epoll object."""
-
-    __objects = None
-    """I/O objects that we are polling."""
-
-
     def __init__(self):
+        # Polled objects
         self.__objects = {}
+
+        # epoll flags cache
+        self.__epoll_flags = {}
+
+        # A list of scheduled deferred calls
+        self.__deferred_calls = []
+
         self.__epoll = select.epoll()
-        self.__activate_at = []
 
 
-    def __del__(self):
-        if self.__epoll is not None:
-            eintr_retry(self.__epoll.close)()
+    def close(self):
+        """Closes the object."""
+
+        eintr_retry(self.__epoll.close)()
+
 
 
     def add_object(self, obj):
-        """Adds an object to the list of polling objects."""
+        """Adds an object to the list of polled objects."""
 
         try:
-            self.__epoll.register(obj.file.fileno(), obj.epoll_flags)
+            self.__epoll.register(obj.fileno(), 0)
         except Exception as e:
-            raise Error("Unable to register a epoll descriptor: {0}.", e)
+            raise Error("Unable to register a file descriptor in epoll: {0}.", e)
 
-        self.__objects[obj.file.fileno()] = obj
+        self.__objects[obj.fileno()] = obj
 
-
-    def call(self, func, *args, **kwargs):
-        return self.call_at(0, func, *args, **kwargs)
-    def call_after(self, timeout, func, *args, **kwargs):
-        return self.call_at(time.time() + timeout, func, *args, **kwargs)
-    def call_at(self, activate_time, func, *args, **kwargs):
-        call = (activate_time, func, args, kwargs)
-        self.__activate_at.insert(
-            bisect.bisect([task[0] for task in self.__activate_at], activate_time),
-            call)
-        return call
-    def cancel_call(self, task):
-        self.__activate_at = [ t for t in self.__activate_at if task is not t ]
 
     def remove_object(self, obj):
-        """Removes an object from the list of polling objects."""
+        """Removes an object from the list of polled objects."""
 
         try:
-            try:
-                del self.__objects[obj.file.fileno()]
-            except KeyError:
-                raise Error("it hasn't been added to the polling list")
+            fileno = obj.fileno()
 
-            self.__epoll.unregister(obj.file.fileno())
+            if fileno in self.__objects:
+                self.__epoll.unregister(fileno)
+                del self.__objects[fileno]
+
+                try:
+                    del self.__epoll_flags[fileno]
+                except KeyError:
+                    pass
         except Exception as e:
-            LOG.error("Unable to remove a file descriptor: %s.", e)
+            LOG.error("Failed to remove %s from the I/O loop: %s.", e)
 
 
-    def start(self, precision=1):
-        """Starts the main loop."""
 
-        read_flags = select.EPOLLIN
-        write_flags = select.EPOLLOUT
+    def call_at(self, call_time, func, *args, **kwargs):
+        """Schedule a deferred call."""
 
-        while True:
-            for fd, obj in self.__objects.items():
-                cur_flags = 0
+        call = _DeferCall(call_time, lambda: func(*args, **kwargs))
 
-                if obj.timed_out():
-                    obj.on_timeout()
+        self.__deferred_calls.insert(
+            bisect.bisect(self.__deferred_calls, call), call)
 
-                    if obj.closed():
-                        continue
+        return call
 
-#				if self.should_stop():
-#					obj.stop()
-#
-#					if obj.closed():
-#						continue
+
+    def call_after(self, interval, func, *args, **kwargs):
+        """A shortcut for call_at()."""
+
+        return self.call_at(time.time() + interval, func, *args, **kwargs)
+
+
+    def call_next(self, func, *args, **kwargs):
+        """A shortcut for call_at()."""
+
+        return self.call_at(0, func, *args, **kwargs)
+
+
+    def cancel_call(self, call):
+        """Cancels the specified deferred call."""
+
+        for call_id in range(len(self.__deferred_calls)):
+            if self.__deferred_calls[call_id] is call:
+                del self.__deferred_calls[call_id]
+                return
+
+
+
+    def start(self):
+        """Starts the I/O loop."""
+
+        while self.__objects or self.__deferred_calls:
+            self.__update_epoll_flags()
+            self.__poll_objects()
+            self.__process_deferred_calls()
+
+
+    def stop(self):
+        """Stops the I/O loop."""
+
+        for obj in self.__objects:
+            try:
+                obj.stop()
+            except Exception:
+                LOG.exception("Failed to stop %s.", obj)
+
+
+
+    def __update_epoll_flags(self):
+        """Updates epoll flags for all polled objects."""
+
+        for fd, obj in self.__objects.items():
+            try:
+                obj_flags = 0
 
                 if obj.poll_read():
-                    cur_flags |= read_flags
+                    obj_flags |= EPOLLIN
 
                 if obj.poll_write():
-                    cur_flags |= write_flags
+                    obj_flags |= EPOLLOUT
 
-                if obj.epoll_flags != cur_flags:
-                    self.__epoll.modify(fd, cur_flags)
-                    obj.epoll_flags = cur_flags
+                if self.__epoll_flags.get(fd, 0) != obj_flags:
+                    self.__epoll.modify(fd, obj_flags)
+                    self.__epoll_flags[fd] = obj_flags
+            except Exception:
+                LOG.exception("Error while configuring epoll for %s.", obj)
 
-#            if not self.__objects:
-#                break
 
-            timeout = -1
-            if self.__activate_at:
-                timeout = max(0, self.__activate_at[0][0] - time.time())
+    def __poll_objects(self):
+        """Polls the controlled objects."""
 
-            for fd, flags in self.__epoll.poll(timeout=timeout):
-                obj = self.__objects.get(fd)
-                if obj is None:
-                    continue
+        timeout = -1
+        if self.__deferred_calls:
+            timeout = max(0, self.__deferred_calls[0].time - time.time())
 
-                if flags & read_flags:
+        for fd, flags in self.__epoll.poll(timeout=timeout):
+            try:
+                obj = self.__objects[fd]
+            except KeyError:
+                continue
+
+            try:
+                if flags & EPOLLIN:
                     if not obj.closed():
                         obj.on_read()
 
-                if flags & write_flags:
+                if flags & EPOLLOUT:
                     if not obj.closed():
                         obj.on_write()
 
-                # TODO
-                if flags & select.EPOLLHUP:
+                if flags & EPOLLHUP:
                     if not obj.closed():
                         obj.on_hang_up()
 
-                # TODO
-                if flags & select.EPOLLERR:
+                if flags & EPOLLERR:
                     if not obj.closed():
-                        # TODO
-                        obj.on_error()
+                        obj.on_error(Error("epoll returned an error state."))
+            except Exception as e:
+                if not isinstance(e, OSError):
+                    LOG.exception("%s handling crashed.", obj)
 
-            drop_index = None
-            cur_time = time.time()
-            for task_id, task in enumerate(self.__activate_at[:]):
-                if task[0] <= cur_time:
-                    drop_index = task_id
-                else:
-                    break
-
-            if drop_index is not None:
-                calls = self.__activate_at[:drop_index + 1]
-                del self.__activate_at[:drop_index + 1]
-                for task in calls:
-                    # TODO: dicts + exceptions
-                    task[1](*task[2], **task[3])
+                obj.on_error(e)
 
 
-#	def should_stop(self):
-#		"""Returns True if we should stop the loop."""
-#
-#		raise Error("Not implemented.")
+    def __process_deferred_calls(self):
+        """Processes pending deferred calls."""
+
+        if not self.__deferred_calls:
+            return
+
+        cur_time = time.time()
+
+        for call_id in range(len(self.__deferred_calls)):
+            if self.__deferred_calls[call_id].time > cur_time:
+                pending_calls = self.__deferred_calls[:call_id]
+                del self.__deferred_calls[:call_id]
+                break
+        else:
+            pending_calls = self.__deferred_calls
+            self.__deferred_calls = []
+
+        for call in pending_calls:
+            try:
+                call.func()
+            except Exception:
+                LOG.exception("A deferred call crashed.")
 
 
 
 class FileObject(object):
-    """Wraps a main loop object."""
+    """Represents a file object to connect to I/O loop."""
 
-    io_loop = None
-    """I/O loop that controls the object."""
+    def __init__(self, io_loop, file_obj, name):
+        # I/O loop that controls the object
+        self._weak_io_loop = weakref.ref(io_loop)
 
-    file = None
-    """File that we are polling."""
+        # File that we are controlling
+        self._file = file_obj
 
-    epoll_flags = 0
-    """epoll flags that are currently used for this object."""
+        # Name of the object
+        self.__name = name
 
-    __timed_out_at = None
-    """
-    If set and current time is greater than the timed_out_at the object is
-    considered as timed out.
-    """
-
-    __close_handlers = None
-    """A list of handlers that will be called on object close."""
-
-
-    _read_buffer = None
-    _write_buffer = None
-
-
-    def __init__(self, io_loop, file, session_timeout=None):
-        self.io_loop = io_loop
-        self.file = file
-        self.__close_handlers = []
-
-        if session_timeout is not None:
-            self.__timed_out_at = time.time() + session_timeout
-
+        # The object's read buffer
         self._read_buffer = bytearray()
+
+        # The object's write buffer
         self._write_buffer = bytearray()
 
-        self.io_loop.add_object(self)
+        # A list of handlers that will be called on object close
+        self.__on_close_handlers = []
 
-
-    def __del__(self):
-        self.close()
-
-
-    def add_on_close_handler(self, handler):
-        """Adds a handler that will be called on object close."""
-
-        self.__close_handlers.append(handler)
+        io_loop.add_object(self)
 
 
     def close(self):
-        """Closes the I/O object."""
+        """Closes the object."""
 
         if not self.closed():
-            self.io_loop.remove_object(self)
+            LOG.debug("Close %s.", self)
+
+            io_loop = self._weak_io_loop()
+            if io_loop is not None:
+                io_loop.remove_object(self)
 
             try:
-                eintr_retry(self.file.close)()
+                eintr_retry(self._file.close)()
             except Exception as e:
-                LOG.error("Failed to close a file descriptor: %s.", e)
+                LOG.error("Failed to close %s: %s.", self, e)
 
-            self.file = None
+            self._file = None
 
-            for handler in self.__close_handlers:
+            for handler in self.__on_close_handlers:
                 try:
                     handler()
                 except:
-                    LOG.exception("A close handler crashed.")
+                    LOG.exception("A close handler for %s crashed.", self)
 
-        self.__close_handlers = []
+        self.__on_close_handlers = []
+
+
+
+    def fileno(self):
+        """Returns the file descriptor."""
+
+        return self._file.fileno()
 
 
     def closed(self):
         """Returns True if the object is closed."""
 
-        return self.file is None
+        return self._file is None
 
 
-    def on_error(self):
-
-        TODO
-
-    def on_read(self):
-        """Called when we have data to read."""
-
-        TODO
-
-    def on_write(self):
-        """Called when we are able to write."""
-
-        TODO
 
     def poll_read(self):
         """Returns True if we need to poll the file for read availability."""
@@ -269,48 +285,111 @@ class FileObject(object):
         return False
 
 
-    def remove_on_close_handler(self, handler):
+
+    def on_read(self):
+        """Called when we got EPOLLIN event."""
+
+        raise Error("Not implemented.")
+
+
+    def on_write(self):
+        """Called when we got EPOLLOUT event."""
+
+        raise Error("Not implemented.")
+
+
+    def on_hang_up(self):
+        """Called when we got EPOLLHUP event."""
+
+        LOG.debug("%s got a hang up.", self)
+        self.close()
+
+
+    def on_error(self, error):
+        """Called when we got EPOLLERR event."""
+
+        LOG.error("%s got an error: %s", self, error)
+        self.close()
+
+
+
+    def add_on_close_handler(self, handler):
         """Adds a handler that will be called on object close."""
 
-        try:
-            self.__close_handlers.append(handler)
-        except ValueError:
-            LOG.error("Unable to remove an on close handler: there is not such handler.")
+        self.__on_close_handlers.append(handler)
 
 
     def stop(self):
-        """Called when the main loop ends its work.
+        """Called when the I/O loop ends its work.
 
         The object have to close itself in the near future after this call to
-        allow the main loop to stop.
+        allow the I/O to stop.
         """
 
 
-    def timed_out(self):
-        """Returns True if the object is timed out."""
 
-        return self.__timed_out_at is not None and time.time() >= self.__timed_out_at
+    def _clear_read_buffer(self):
+        """Clears the read buffer."""
+
+        del self._read_buffer[:]
 
 
     def _read(self, size):
+        """
+        Reads data from the file to the read buffer and returns True only when
+        the specified size will be read.
+        """
+
         if len(self._read_buffer) < size:
-            # TODO: EWOULDBLOCK
-            data = eintr_retry(os.read)(self.file.fileno(), size - len(self._read_buffer))
-            if not data:
-                raise Exception("TODO FIXME")
-            self._read_buffer.extend(data)
-        return len(self._read_buffer) == size
+            try:
+                data = eintr_retry(os.read)(self.fileno(), size - len(self._read_buffer))
+            except OSError as e:
+                if e.errno == errno.EWOULDBLOCK:
+                    pass
+                else:
+                    raise
+            else:
+                if not data:
+                    raise EOFError("End of file has been reached.")
+
+                self._read_buffer.extend(data)
+
+        return len(self._read_buffer) >= size
+
 
     def _write(self, data=None):
+        """
+        Writes the data from the write buffer + the specified data and returns
+        True only when all the data will be written.
+        """
+
         if data is not None:
             self._write_buffer.extend(data)
 
         if self._write_buffer:
-            # TODO: EWOULDBLOCK
-            size = eintr_retry(os.write)(self.file.fileno(), self._write_buffer)
-            if size:
-                del self._write_buffer[:size + 1]
+            try:
+                size = eintr_retry(os.write)(self.fileno(), self._write_buffer)
+            except OSError as e:
+                if e.errno == errno.EWOULDBLOCK:
+                    pass
+                else:
+                    raise
+            else:
+                if size:
+                    del self._write_buffer[:size + 1]
 
         return not self._write_buffer
-    def _clear_read_buffer(self):
-        del self._read_buffer[:]
+
+
+
+    if PY3:
+        def __str__(self):
+            return self.__name
+    else:
+        def __unicode__(self):
+            return self.__name
+
+
+
+_DeferCall = namedtuple("DeferCall", ("time", "func"))
+"""Represents a deferred call object."""

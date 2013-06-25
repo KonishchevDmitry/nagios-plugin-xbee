@@ -37,7 +37,7 @@ class MainLoop(IoLoop):
         super(MainLoop, self).__init__()
         self.__sensors = {}
         Server(self)
-        self.call(self.__connect_to_sensors)
+        self.call_next(self.__connect_to_sensors)
 
 
 
@@ -54,7 +54,8 @@ LOG.info("Staring the daemon...")
 
 io_loop = MainLoop()
 #connect(io_loop)
-io_loop.start(precision=-1)
+io_loop.start()
+io_loop.close()
 #poll = psys.poll.Poll()
 #poll.register(sensor.fileno(), poll.POLLIN)
 
