@@ -1,17 +1,17 @@
-# TODO
-from pcore import str
+"""Contains various core classes and functions."""
+
+from __future__ import unicode_literals
+
 
 class Error(Exception):
-    """The base class for all exceptions that our code throws."""
+    """The base class for exceptions that our code throws."""
 
     def __init__(self, error, *args):
-        Exception.__init__(self, str(error).format(*args) if len(args) else str(error))
-        self.code = "Error"
-
+        super(Error, self).__init__(error.format(*args) if args else error)
 
 
 class LogicalError(Exception):
     """Thrown in all code that must not be executed."""
 
     def __init__(self):
-        Exception.__init__(self, "Logical error.")
+        super(LogicalError, self).__init__("Logical error.")
