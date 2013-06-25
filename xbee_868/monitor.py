@@ -42,11 +42,9 @@ class _MainLoop(xbee_868.io_loop.IoLoop):
         """Connects to XBee 868 devices."""
 
         try:
-            # TODO
-            pass
-#            xbee_868.sensor.connect(self)
+            xbee_868.sensor.connect(self)
         finally:
-            self.__deferred_call = self.call_after(5, self.__connect_to_sensors)
+            self.__deferred_call = self.call_after(10, self.__connect_to_sensors)
 
 
 

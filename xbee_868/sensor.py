@@ -1,4 +1,3 @@
-# TODO
 """Contains all logic for communication with XBee 868."""
 
 from __future__ import unicode_literals
@@ -7,7 +6,7 @@ import errno
 import logging
 import os
 import struct
-#import serial
+import serial
 
 from xbee_868.core import Error, LogicalError
 from xbee_868.io_loop import FileObject
@@ -33,10 +32,6 @@ _STATE_RECV_FRAME_BODY = "receive-frame-body"
 """State for receiving a frame body."""
 
 
-# TODO
-_SENSORS = {}
-
-
 LOG = logging.getLogger(__name__)
 
 
@@ -49,29 +44,42 @@ class _InvalidFrameError(Error):
 
 
 
-# TODO: EOFError
-# TODO: handle connection lost
 class _Sensor(FileObject):
     """Represents a XBee 868 sensor."""
 
+    sensors = set()
+    """All opened devices."""
+
+
     def __init__(self, io_loop, device):
-        # TODO
-        self.__sensor = serial.Serial(device)
-        self.__sensor.nonblocking()
+        sensor = serial.Serial(device, baudrate=9600)
 
-        super(_Sensor, self).__init__(io_loop, self.__sensor)
+        try:
+            sensor.nonblocking()
+            super(_Sensor, self).__init__(
+                io_loop, sensor, "XBee 868 at " + device)
+        except:
+            sensor.close()
+            raise
 
-        self.__skipped_bytes = 0
-        self.__offset = None
-        self.__frame_size = None
+        try:
+            self.__offset = None
+            self.__skipped_bytes = 0
+            self.__frame_size = None
+            self.__set_state(_STATE_FIND_FRAME_HEADER)
 
-        self.__set_state(_STATE_FIND_FRAME_HEADER)
-        # TODO
-        _SENSORS[device] = self
-        def remove_from_sensors():
-            if device in _SENSORS:
-                del _SENSORS[device]
-        self.add_on_close_handler(remove_from_sensors)
+            self.add_on_close_handler(lambda: self.sensors.discard(device))
+            self.sensors.add(device)
+        except:
+            self.close()
+            raise
+
+
+
+    def poll_read(self):
+        """Returns True if we need to poll the file for read availability."""
+
+        return True
 
 
     def on_read(self):
@@ -87,10 +95,12 @@ class _Sensor(FileObject):
             raise LogicalError()
 
 
-    def poll_read(self):
-        """Returns True if we need to poll the file for read availability."""
 
-        return True
+    def stop(self):
+        """Called when the I/O loop ends its work."""
+
+        self.close()
+
 
 
     def __check_read_buffer(self, size):
@@ -262,36 +272,34 @@ class _Sensor(FileObject):
 
 
 
-# TODO
 def connect(io_loop):
     """Connects to XBee 868 devices."""
 
     device_name = "XBee 868"
+    device_directory = "/dev/serial/by-id"
 
     LOG.debug("Looking for %s devices...", device_name)
 
-    devices = []
-    device_directory = "/dev/serial/by-id"
-
     try:
-        for device in os.listdir(device_directory):
-            if "xbib-u-ss" in device.lower():
-                devices.append(os.path.join(device_directory, device))
+        devices = [
+            os.path.join(device_directory, device)
+            for device in os.listdir(device_directory)
+                if "xbib-u-ss" in device.lower()
+        ]
     except OSError as e:
         if e.errno == errno.ENOENT:
-            LOG.error("There is no any connected serial device.")
+            LOG.debug("There is no any connected serial devices.")
         else:
             LOG.error("Unable to list connected serial devices: {0}.", e.strerror)
     else:
         for device in devices:
-            if device not in _SENSORS:
-                LOG.debug("Connecting to %s...", device)
+            if device not in _Sensor.sensors:
+                LOG.info("Connecting to %s at %s...", device_name, device)
 
                 try:
                     _Sensor(io_loop, device)
                 except Exception as e:
                     LOG.error("Failed to connect to %s: %s", device_name, e)
 
-        if not devices and not _SENSORS:
-            LOG.error("There is no any connected %s device.", device_name)
-
+        if not devices:
+            LOG.debug("There is no any connected %s device.", device_name)
