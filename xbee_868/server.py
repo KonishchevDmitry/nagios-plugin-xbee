@@ -65,7 +65,7 @@ class Server(FileObject):
             connection = eintr_retry(self._file.accept)()[0]
         except OSError as e:
             if e.errno != errno.ECONNABORTED:
-                LOG.error("Unable to accept a connection: %s.", e)
+                LOG.error("Unable to accept a connection: %s.", e.strerror)
         else:
             connection_name = "Client connection #{0}".format(self.__client_id)
             self.__client_id += 1
