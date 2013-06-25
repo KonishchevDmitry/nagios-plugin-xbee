@@ -59,7 +59,7 @@ def get_stats():
             raise Error("The server returned a malformed response.")
 
         try:
-            return json.loads(stats[size_length:])
+            return json.loads(stats[size_length:].decode("utf-8"))
         except ValueError as e:
             raise Error("The server returned an invalid response.")
     except Exception as e:
