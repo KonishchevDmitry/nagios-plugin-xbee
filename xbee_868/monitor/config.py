@@ -9,25 +9,16 @@ from pcore import PY3, str, bytes
 
 from xbee_868.common.core import Error
 
-_CONFIG = None
-"""Parsed configuration file."""
+
+ADDRESSES = {}
+"""Sensor MAC address to host mappings."""
 
 _CONFIG_PATH = "/etc/xbee-868-monitor.conf"
 """Configuration file path."""
 
 
-def get(name):
-    """Returns the specified configuration value."""
-
-    return _get(load(), name)
-
-
 def load():
     """Loads the configuration file."""
-
-    global _CONFIG
-    if _CONFIG is not None:
-        return _CONFIG
 
     path = _CONFIG_PATH
 
@@ -40,28 +31,16 @@ def load():
     except OSError as e:
         raise Error("Failed to load configuration file '{0}': {1}.", path, e.strerror)
 
-    config = {}
-
     try:
+        config = {}
+
         for key, value in config_module.__dict__.items():
             if key.isupper():
-                config[key.lower()] = _validate_value(key, value)
+                config[key] = _validate_value(key, value)
+
+        _validate_config(config)
     except Exception as e:
         raise Error("Error while parsing configuration file '{0}': {1}", path, e)
-
-    _CONFIG = _validate_config(config)
-
-    return _CONFIG
-
-
-def _get(config, name):
-    """Returns the specified configuration value."""
-
-    try:
-        return config[name]
-    except KeyError:
-        raise Error("{0} is missing in the configuration file {1}.",
-            name.upper(), _CONFIG_PATH)
 
 
 def _validate_value(key, value):
@@ -121,11 +100,18 @@ def _validate_list_like_value(key, value):
 def _validate_config(config):
     """Validates all config values."""
 
-    for host, address in _get(config, "hosts").items():
+    global ADDRESSES
+
+    try:
+        hosts = config["HOSTS"]
+    except KeyError as e:
+        raise Error("{0} is missing in the configuration file '{0}'.", e, _CONFIG_PATH)
+
+    for host, address in hosts.items():
         if type(host) is not str:
             raise Error("Invalid host name ({0}} - it must be a string.", host)
 
         if type(address) is not str or not re.search("^[0-9a-zA-Z]{16}$", address):
             raise Error("Invalid XBee 868 sensor address ({0}) - it must be a 64-bit hex value (string).", address)
 
-    return config
+        ADDRESSES[int(address, 16)] = host

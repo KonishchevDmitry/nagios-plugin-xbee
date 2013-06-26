@@ -12,6 +12,8 @@ import struct
 from xbee_868.common.core import Error, LogicalError
 from xbee_868.common.io_loop import FileObject
 
+from xbee_868.monitor import config
+
 
 _FRAME_DELIMITER = 0x7E
 """XBee 868 frame delimiter."""
@@ -256,7 +258,13 @@ class _Sensor(FileObject):
         if self.__offset != len(self._read_buffer) - 1: # -1 for checksum
             raise _InvalidFrameError("Frame size is too big for its payload.")
 
-        _handle_metrics(address, metrics)
+
+        try:
+            host = config.ADDRESSES[address]
+        except KeyError:
+            LOG.warning("Got metrics for an unknown MAC address: %016X.", address)
+        else:
+            _handle_temperature(host, metrics.get(1))
 
 
     def __check_read_buffer(self, size):
@@ -318,14 +326,6 @@ def connect(io_loop):
 
         if not devices:
             LOG.debug("There is no any connected %s device.", device_name)
-
-
-def _handle_metrics(address, metrics):
-    """Handles metrics for the specified XBee 868 hardware address."""
-
-    # TODO
-    host = "test-host"
-    _handle_temperature(host, metrics.get(1))
 
 
 def _handle_temperature(host, value):
