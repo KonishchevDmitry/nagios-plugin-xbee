@@ -7,7 +7,7 @@ import re
 
 from pcore import PY3, str, bytes
 
-from xbee_868.core import Error
+from xbee_868.common.core import Error
 
 _CONFIG = None
 """Parsed configuration file."""

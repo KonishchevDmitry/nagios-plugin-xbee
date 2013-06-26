@@ -11,11 +11,14 @@ import struct
 
 from psys import eintr_retry
 
-import xbee_868.stats
+from xbee_868.common import constants
+from xbee_868.common.core import Error
+from xbee_868.common.io_loop import FileObject
 
-from xbee_868 import constants
-from xbee_868.core import Error
-from xbee_868.io_loop import FileObject
+import xbee_868.monitor.stats
+from xbee_868 import monitor
+
+xbee_868 # Suppress PyFlakes warnings
 
 LOG = logging.getLogger(__name__)
 
@@ -96,7 +99,7 @@ class _Client(FileObject):
         try:
             LOG.info("Sending sensor statistics to %s...", self)
 
-            stats = json.dumps(xbee_868.stats.get()).encode("utf-8")
+            stats = json.dumps(monitor.stats.get()).encode("utf-8")
             message = struct.pack(b"!Q", len(stats)) + stats
 
             if self._write(message):

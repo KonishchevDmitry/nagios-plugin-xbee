@@ -6,7 +6,10 @@ from __future__ import unicode_literals
 
 import pprint
 
-import xbee_868.client
+import xbee_868.nagios.client
+from xbee_868 import nagios
 
-stats = xbee_868.client.get_stats()
+xbee_868 # Suppress PyFlakes warnings
+
+stats = nagios.client.get_stats()
 pprint.pprint(stats)

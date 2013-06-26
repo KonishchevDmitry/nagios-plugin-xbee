@@ -11,23 +11,28 @@ import sys
 
 from psys import eintr_retry
 
-import xbee_868.config
-import xbee_868.io_loop
-import xbee_868.log
-import xbee_868.sensor
-import xbee_868.server
+import xbee_868.common.log
+import xbee_868.common.io_loop
+from xbee_868 import common
 
-LOG = logging.getLogger("xbee_868.monitor" if __name__ == "__main__" else __name__)
+import xbee_868.monitor.config
+import xbee_868.monitor.sensor
+import xbee_868.monitor.server
+from xbee_868 import monitor
+
+xbee_868 # Suppress PyFlakes warnings
+
+LOG = logging.getLogger("xbee_868.monitor.main" if __name__ == "__main__" else __name__)
 
 
-class _MainLoop(xbee_868.io_loop.IoLoop):
+class _MainLoop(common.io_loop.IoLoop):
     """The monitor's main loop."""
 
     def __init__(self):
         super(_MainLoop, self).__init__()
 
         try:
-            xbee_868.server.Server(self)
+            monitor.server.Server(self)
             self.__deferred_call = self.call_next(self.__connect_to_sensors)
         except:
             self.close()
@@ -45,13 +50,13 @@ class _MainLoop(xbee_868.io_loop.IoLoop):
         """Connects to XBee 868 devices."""
 
         try:
-            xbee_868.sensor.connect(self)
+            monitor.sensor.connect(self)
         finally:
             self.__deferred_call = self.call_after(10, self.__connect_to_sensors)
 
 
 
-class _TerminationSignal(xbee_868.io_loop.FileObject):
+class _TerminationSignal(common.io_loop.FileObject):
     """UNIX termination signal monitor."""
 
     def __init__(self, io_loop, fd):
@@ -78,8 +83,8 @@ def main():
     """The daemon's main function."""
 
     try:
-        xbee_868.config.load()
-        xbee_868.log.setup(debug_mode="--debug" in sys.argv[1:])
+        monitor.config.load()
+        common.log.setup(debug_mode="--debug" in sys.argv[1:])
     except Exception as e:
         sys.exit("Unable to start the daemon: {0}".format(e))
 

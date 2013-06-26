@@ -9,8 +9,8 @@ import struct
 # TODO
 #import serial
 
-from xbee_868.core import Error, LogicalError
-from xbee_868.io_loop import FileObject
+from xbee_868.common.core import Error, LogicalError
+from xbee_868.common.io_loop import FileObject
 
 
 _FRAME_DELIMITER = 0x7E

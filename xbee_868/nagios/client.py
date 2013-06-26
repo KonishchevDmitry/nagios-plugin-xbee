@@ -9,8 +9,8 @@ import struct
 
 from psys import eintr_retry
 
-from xbee_868 import constants
-from xbee_868.core import Error
+from xbee_868.common import constants
+from xbee_868.common.core import Error
 
 
 def get_stats():
