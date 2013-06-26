@@ -1,5 +1,7 @@
 """The monitor's main module."""
 
+from __future__ import unicode_literals
+
 import errno
 import fcntl
 import logging
@@ -9,6 +11,7 @@ import sys
 
 from psys import eintr_retry
 
+import xbee_868.config
 import xbee_868.io_loop
 import xbee_868.log
 import xbee_868.sensor
@@ -74,27 +77,35 @@ class _TerminationSignal(xbee_868.io_loop.FileObject):
 def main():
     """The daemon's main function."""
 
-    xbee_868.log.setup(debug_mode="--debug" in sys.argv[1:])
+    try:
+        xbee_868.config.load()
+        xbee_868.log.setup(debug_mode="--debug" in sys.argv[1:])
+    except Exception as e:
+        sys.exit("Unable to start the daemon: {0}".format(e))
+
     LOG.info("Starting the daemon...")
 
-    with _MainLoop() as io_loop:
-        signals = (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT)
-        read_fd, write_fd = os.pipe()
+    try:
+        with _MainLoop() as io_loop:
+            signals = (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT)
+            read_fd, write_fd = os.pipe()
 
-        try:
             try:
-                _configure_termination_signals(
-                    io_loop, signals, read_fd, write_fd)
-            except:
-                eintr_retry(os.close)(read_fd)
-                raise
+                try:
+                    _configure_termination_signals(
+                        io_loop, signals, read_fd, write_fd)
+                except:
+                    eintr_retry(os.close)(read_fd)
+                    raise
 
-            io_loop.start()
-        finally:
-            for sig in signals:
-                signal.signal(sig, signal.SIG_IGN)
+                io_loop.start()
+            finally:
+                for sig in signals:
+                    signal.signal(sig, signal.SIG_IGN)
 
-            eintr_retry(os.close)(write_fd)
+                eintr_retry(os.close)(write_fd)
+    except Exception as e:
+        LOG.error("The daemon has crashed: %s", e)
 
 
 def _configure_termination_signals(io_loop, signals, read_fd, write_fd):
