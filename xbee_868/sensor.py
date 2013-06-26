@@ -6,7 +6,8 @@ import errno
 import logging
 import os
 import struct
-import serial
+# TODO
+#import serial
 
 from xbee_868.core import Error, LogicalError
 from xbee_868.io_loop import FileObject
@@ -52,10 +53,15 @@ class _Sensor(FileObject):
 
 
     def __init__(self, io_loop, device):
-        sensor = serial.Serial(device, baudrate=9600)
+        # TODO
+        #sensor = serial.Serial(device, baudrate=9600)
+        sensor = open(device, "r")
+        import fcntl
+        fcntl.fcntl(sensor.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
 
         try:
-            sensor.nonblocking()
+            # TODO
+            #sensor.nonblocking()
             super(_Sensor, self).__init__(
                 io_loop, sensor, "XBee 868 at " + device)
         except:
@@ -103,14 +109,19 @@ class _Sensor(FileObject):
 
 
 
-    def __check_read_buffer(self, size):
-        """
-        Checks the read buffer for availability of the specified bytes of data
-        (counting from current read offset).
-        """
+    def __set_state(self, state):
+        """Sets current state."""
 
-        if self.__offset + size > len(self._read_buffer):
-            raise _InvalidFrameError("End of frame has been reached.")
+        if state == _STATE_FIND_FRAME_HEADER:
+            LOG.debug("Looking for a frame header...")
+        elif state == _STATE_RECV_FRAME_HEADER:
+            LOG.debug("Receiving a frame header...")
+        elif state == _STATE_RECV_FRAME_BODY:
+            LOG.debug("Receiving a frame body...")
+        else:
+            raise LogicalError()
+
+        self.__state = state
 
 
     def __find_frame_header(self):
@@ -127,110 +138,6 @@ class _Sensor(FileObject):
             self.__skipped_bytes += 1
             if not self.__skipped_bytes % 100:
                 LOG.debug("Skip %s bytes...", self.__skipped_bytes)
-
-
-    def __handle_frame(self):
-        """Handles a frame."""
-
-        LOG.debug("Frame: %s", " ".join("{0:02x}".format(c) for c in self._read_buffer))
-
-        self.__check_read_buffer(1)
-        frame_type = self._read_buffer[self.__offset]
-        self.__offset += 1
-
-        if frame_type != 0x92:
-            LOG.info("Got an unknown frame %#x. Skipping it.", frame_type)
-            return
-
-        frame = bytes(self._read_buffer)
-
-
-        frame_format = b"!QH BB HB"
-        self.__check_read_buffer(struct.calcsize(frame_format))
-
-        address, network_address, \
-        receive_options, samples_number, \
-        digital_mask, analog_mask = \
-            struct.unpack_from(frame_format, frame, offset=self.__offset)
-        self.__offset += struct.calcsize(frame_format)
-
-        LOG.info("Got a %#x frame:", frame_type)
-        LOG.info("Source address: %016X.", address)
-        LOG.info("Network address: %04X.", network_address)
-
-
-        LOG.info("Digital channel mask: %s.", "{0:016b}".format(digital_mask))
-
-        if digital_mask:
-            digital_samples_format = b"!H"
-            digital_samples, = struct.unpack_from(
-                digital_samples_format, frame, offset=self.__offset)
-            self.__offset += struct.calcsize(digital_samples_format)
-
-            LOG.info("Digital samples: %s.", "{0:016b}".format(digital_samples))
-
-
-        LOG.info("Analog channel mask: %s.", "{0:08b}".format(analog_mask))
-
-        analog_sample_format = b"!H"
-        analog_sample_size = struct.calcsize(analog_sample_format)
-        analog_mask_shift = 0
-
-        while analog_mask:
-            if analog_mask & 1:
-                self.__check_read_buffer(analog_sample_size)
-                analog_sample, = struct.unpack_from(
-                    analog_sample_format, frame, offset=self.__offset)
-                self.__offset += analog_sample_size
-
-                LOG.info("Analog sample for %s: %04X.",
-                    "{0:08b}".format(1 << analog_mask_shift), analog_sample)
-
-            analog_mask >>= 1
-            analog_mask_shift += 1
-
-
-        if self.__offset != len(self._read_buffer) - 1: # -1 for checksum
-            raise _InvalidFrameError("Frame size is too big for its payload.")
-
-
-    def __handle_frame_error(self, error):
-        """Handles a frame error."""
-
-        LOG.error("Error while processing a frame: %s", error)
-
-        frame_delimiter_pos = self._read_buffer.find(chr(_FRAME_DELIMITER), 1)
-
-        if frame_delimiter_pos == -1:
-            self.__skipped_bytes = len(self._read_buffer)
-            self._clear_read_buffer()
-            self.__set_state(_STATE_FIND_FRAME_HEADER)
-        else:
-            LOG.debug("Found a frame delimiter. %s bytes has been skipped.", frame_delimiter_pos)
-            del self._read_buffer[:frame_delimiter_pos]
-            self.__set_state(_STATE_RECV_FRAME_HEADER)
-
-
-    def __receive_frame_body(self):
-        """Receives frame body."""
-
-        # Receive frame + checksum
-        if not self._read(self.__offset + self.__frame_size + 1):
-            return
-
-        checksum = 0xFF - ( sum(byte for byte in self._read_buffer[3:-1]) & 0b11111111 )
-        frame_checksum = self._read_buffer[-1]
-
-        try:
-            if checksum != frame_checksum:
-                raise _InvalidFrameError("Frame checksum mismatch.")
-
-            self.__handle_frame()
-        except _InvalidFrameError as e:
-            self.__handle_frame_error(e)
-        else:
-            self._clear_read_buffer()
-            self.__set_state(_STATE_RECV_FRAME_HEADER)
 
 
     def __receive_frame_header(self):
@@ -256,19 +163,127 @@ class _Sensor(FileObject):
             self.__set_state(_STATE_RECV_FRAME_BODY)
 
 
-    def __set_state(self, state):
-        """Sets current state."""
+    def __receive_frame_body(self):
+        """Receives frame body."""
 
-        if state == _STATE_FIND_FRAME_HEADER:
-            LOG.debug("Looking for a frame header...")
-        elif state == _STATE_RECV_FRAME_HEADER:
-            LOG.debug("Receiving a frame header...")
-        elif state == _STATE_RECV_FRAME_BODY:
-            LOG.debug("Receiving a frame body...")
+        # Receive frame + checksum
+        if not self._read(self.__offset + self.__frame_size + 1):
+            return
+
+        checksum = 0xFF - ( sum(byte for byte in self._read_buffer[3:-1]) & 0b11111111 )
+        frame_checksum = self._read_buffer[-1]
+
+        try:
+            if checksum != frame_checksum:
+                raise _InvalidFrameError("Frame checksum mismatch.")
+
+            self.__handle_frame()
+        except _InvalidFrameError as e:
+            self.__handle_frame_error(e)
         else:
-            raise LogicalError()
+            self._clear_read_buffer()
+            self.__set_state(_STATE_RECV_FRAME_HEADER)
 
-        self.__state = state
+
+    def __handle_frame(self):
+        """Handles a frame."""
+
+        LOG.debug("Frame: %s", " ".join("{0:02x}".format(c) for c in self._read_buffer))
+
+        self.__check_read_buffer(1)
+        frame_type = self._read_buffer[self.__offset]
+        self.__offset += 1
+
+        if frame_type == 0x92:
+            self.__handle_metrics_frame()
+        else:
+            LOG.debug("Got an unknown frame %#x. Skipping it.", frame_type)
+
+
+    def __handle_metrics_frame(self):
+        """Handles a metrics frame."""
+
+        frame = bytes(self._read_buffer)
+
+        frame_format = b"!QH BB HB"
+        self.__check_read_buffer(struct.calcsize(frame_format))
+
+        address, network_address, \
+        receive_options, samples_number, \
+        digital_mask, analog_mask = \
+            struct.unpack_from(frame_format, frame, offset=self.__offset)
+        self.__offset += struct.calcsize(frame_format)
+
+        LOG.debug("Got a metrics frame:")
+        LOG.debug("Source address: %016X.", address)
+        LOG.debug("Network address: %04X.", network_address)
+
+
+        LOG.debug("Digital channel mask: %s.", "{0:016b}".format(digital_mask))
+
+        if digital_mask:
+            digital_samples_format = b"!H"
+            digital_samples, = struct.unpack_from(
+                digital_samples_format, frame, offset=self.__offset)
+            self.__offset += struct.calcsize(digital_samples_format)
+
+            LOG.debug("Digital samples: %s.", "{0:016b}".format(digital_samples))
+
+
+        LOG.debug("Analog channel mask: %s.", "{0:08b}".format(analog_mask))
+
+        metrics = {}
+        analog_sample_format = b"!H"
+        analog_sample_size = struct.calcsize(analog_sample_format)
+        analog_mask_shift = 0
+
+        while analog_mask:
+            if analog_mask & 1:
+                self.__check_read_buffer(analog_sample_size)
+                analog_sample, = struct.unpack_from(
+                    analog_sample_format, frame, offset=self.__offset)
+                self.__offset += analog_sample_size
+
+                LOG.debug("Analog sample for %s: %04X.",
+                    "{0:08b}".format(1 << analog_mask_shift), analog_sample)
+
+                metrics[analog_mask_shift] = analog_sample
+
+            analog_mask >>= 1
+            analog_mask_shift += 1
+
+
+        if self.__offset != len(self._read_buffer) - 1: # -1 for checksum
+            raise _InvalidFrameError("Frame size is too big for its payload.")
+
+        _handle_metrics(address, metrics)
+
+
+    def __check_read_buffer(self, size):
+        """
+        Checks the read buffer for availability of the specified bytes of data
+        (counting from current read offset).
+        """
+
+        if self.__offset + size > len(self._read_buffer):
+            raise _InvalidFrameError("End of frame has been reached.")
+
+
+    def __handle_frame_error(self, error):
+        """Handles a frame error."""
+
+        LOG.error("Error while processing a frame: %s", error)
+
+        frame_delimiter_pos = self._read_buffer.find(chr(_FRAME_DELIMITER), 1)
+
+        if frame_delimiter_pos == -1:
+            self.__skipped_bytes = len(self._read_buffer)
+            self._clear_read_buffer()
+            self.__set_state(_STATE_FIND_FRAME_HEADER)
+        else:
+            LOG.debug("Found a frame delimiter. %s bytes has been skipped.", frame_delimiter_pos)
+            del self._read_buffer[:frame_delimiter_pos]
+            self.__set_state(_STATE_RECV_FRAME_HEADER)
 
 
 
@@ -303,3 +318,27 @@ def connect(io_loop):
 
         if not devices:
             LOG.debug("There is no any connected %s device.", device_name)
+
+
+def _handle_metrics(address, metrics):
+    """Handles metrics for the specified XBee 868 hardware address."""
+
+    # TODO
+    host = "test-host"
+    _handle_temperature(host, metrics.get(1))
+
+
+def _handle_temperature(host, value):
+    """Handles a temperature metric."""
+
+    max_value = 1023
+    max_voltage = 2.5
+
+    if value in (None, max_value):
+        LOG.warning("%s doesn't have a temperature sensor.", host)
+    elif value < max_value:
+        voltage = float(value) / max_value * max_voltage
+        degrees = int((voltage - 0.5) * 100)
+        LOG.info("Got a temperature for %s: %s.", host, degrees)
+    else:
+        LOG.error("Got an invalid temperature value for %s.", host)
