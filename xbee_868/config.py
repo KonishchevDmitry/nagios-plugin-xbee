@@ -7,11 +7,13 @@ import re
 
 from pcore import PY3, str, bytes
 
-from xbee_868 import constants
 from xbee_868.core import Error
 
 _CONFIG = None
 """Parsed configuration file."""
+
+_CONFIG_PATH = "/etc/xbee-868-monitor.conf"
+"""Configuration file path."""
 
 
 def get(name):
@@ -27,7 +29,7 @@ def load():
     if _CONFIG is not None:
         return _CONFIG
 
-    path = constants.CONFIG_PATH
+    path = _CONFIG_PATH
 
     config_module = imp.new_module("config")
     config_module.__file__ = path
@@ -59,7 +61,7 @@ def _get(config, name):
         return config[name]
     except KeyError:
         raise Error("{0} is missing in the configuration file {1}.",
-            name.upper(), constants.CONFIG_PATH)
+            name.upper(), _CONFIG_PATH)
 
 
 def _validate_value(key, value):
