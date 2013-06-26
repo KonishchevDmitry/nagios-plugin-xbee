@@ -182,7 +182,7 @@ class _Client(FileObject):
         LOG.info("%s: request %s", self, request)
 
         try:
-            reply = { "result": monitor.request.handle(request) }
+            reply = { "result": monitor.request.handle(request.pop("method"), request) }
         except Exception as e:
             (LOG.warning if isinstance(e, Error) else LOG.error)(
                 "%s: request failed: %s", self, e)

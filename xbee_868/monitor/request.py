@@ -10,13 +10,38 @@ import xbee_868.monitor.stats
 from xbee_868 import monitor
 xbee_868 # Suppress PyFlakes warnings
 
+_HANDLERS = {}
+"""Registered handlers."""
+
 LOG = logging.getLogger(__name__)
 
 
-def handle(request):
+def handle(method, params):
     """Handles monitor client request."""
 
-    if request["method"] == "uptime":
-        return { "uptime": monitor.stats.uptime() }
-    else:
-        raise Error("Invalid method: {0}.", request["method"])
+    try:
+        handler = _HANDLERS[method]
+    except KeyError:
+        raise Error("Invalid method: {0}.", method)
+
+    return handler(**params)
+
+
+def _handler(method):
+    """Registers a request handlers."""
+
+    def register(handler):
+        if method in _HANDLERS:
+            raise Error("Handler for method {0} is already registered.", method)
+
+        _HANDLERS[method] = handler
+        return handler
+
+    return register
+
+
+@_handler("uptime")
+def _uptime():
+    """Returns monitor service uptime."""
+
+    return { "uptime": monitor.stats.uptime() }
