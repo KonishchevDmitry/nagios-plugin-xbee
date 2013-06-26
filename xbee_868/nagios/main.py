@@ -11,5 +11,8 @@ from xbee_868 import nagios
 
 xbee_868 # Suppress PyFlakes warnings
 
-stats = nagios.client.get_stats()
+stats = nagios.client.uptime()
 pprint.pprint(stats)
+
+metrics = nagios.client.metrics("test")
+pprint.pprint(metrics)

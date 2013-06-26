@@ -10,13 +10,30 @@ import struct
 from psys import eintr_retry
 
 from xbee_868.common import constants
-from xbee_868.common.core import Error
+from xbee_868.common.core import Error, LogicalError
 
 
-def get_stats():
-    """Requests sensor statistics from the server."""
+def metrics(host):
+    """Returns metrics for the specified host."""
+
+    return _send("metrics", { "host": host })
+
+
+def uptime():
+    """Returns monitor service uptime."""
+
+    return _send("uptime")
+
+
+def _send(method, request={}):
+    """Sends a request to the monitor."""
 
     try:
+        if "method" in request:
+            raise LogicalError()
+
+        request["method"] = method
+
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(constants.IPC_TIMEOUT)
 
@@ -30,37 +47,44 @@ def get_stats():
             else:
                 raise e
 
+        size_format = b"!Q"
+
         try:
-            sock.shutdown(socket.SHUT_WR)
+            message = json.dumps(request).encode("utf-8")
+            sock.sendall(struct.pack(size_format, len(message)) + message)
 
-            stats = bytearray()
+            message = bytearray()
 
-            data = "empty"
+            data = "-"
             while data:
                 data = eintr_retry(sock.recv)(constants.BUFSIZE)
-                stats.extend(data)
+                message.extend(data)
 
-            stats = bytes(stats)
+            message = bytes(message)
         except socket.timeout:
             raise Error("The request timed out.")
 
-        size_format = b"!Q"
         size_length = struct.calcsize(size_format)
 
-        if len(stats) < size_length:
+        if len(message) < size_length:
             raise Error("The server rejected the request.")
 
-        size, = struct.unpack_from(size_format, stats)
+        size, = struct.unpack_from(size_format, message)
 
-        if len(stats) < size_length + size:
+        if len(message) < size_length + size:
             raise Error("The server rejected the request.")
 
-        if len(stats) != size_length + size:
+        if len(message) != size_length + size:
             raise Error("The server returned a malformed response.")
 
         try:
-            return json.loads(stats[size_length:].decode("utf-8"))
-        except ValueError as e:
+            reply = json.loads(message[size_length:].decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as e:
             raise Error("The server returned an invalid response.")
     except Exception as e:
-        raise Error("Error while receiving sensor statistics from XBee 868 monitoring server: {0}", e)
+        raise Error("XBee 868 monitor request failed: {0}", e)
+
+    if "error" in reply or "result" not in reply:
+        raise Error(reply.get("error", "Unknown error."))
+
+    return reply["result"]
