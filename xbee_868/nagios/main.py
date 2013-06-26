@@ -14,5 +14,5 @@ xbee_868 # Suppress PyFlakes warnings
 stats = nagios.client.uptime()
 pprint.pprint(stats)
 
-metrics = nagios.client.metrics("test")
+metrics = nagios.client.metrics("bc02blade11")
 pprint.pprint(metrics)

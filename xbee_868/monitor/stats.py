@@ -6,8 +6,14 @@ import time
 
 from xbee_868.common.core import Error
 
+from xbee_868.monitor import config
+
+
 _MONITOR_START_TIME = None
 """The monitor service start time."""
+
+_METRICS = {}
+"""Recorded metrics."""
 
 
 def monitor_started():
@@ -21,10 +27,19 @@ def monitor_started():
     _MONITOR_START_TIME = time.time()
 
 
-def uptime():
+def get_uptime():
     """Returns current monitor uptime."""
 
     if _MONITOR_START_TIME is None:
         raise Error("The monitor is not started.")
 
     return int(time.time() - _MONITOR_START_TIME)
+
+
+def get_metrics(host):
+    """Returns recorded metrics for the specified host."""
+
+    if host not in config.HOSTS:
+        raise Error("Unknown host {0}.", host)
+
+    return _METRICS.get(host, {})

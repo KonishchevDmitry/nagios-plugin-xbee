@@ -10,6 +10,9 @@ from pcore import PY3, str, bytes
 from xbee_868.common.core import Error
 
 
+HOSTS = set()
+"""Known hosts."""
+
 ADDRESSES = {}
 """Sensor MAC address to host mappings."""
 
@@ -100,6 +103,7 @@ def _validate_list_like_value(key, value):
 def _validate_config(config):
     """Validates all config values."""
 
+    global HOSTS
     global ADDRESSES
 
     try:
@@ -115,3 +119,5 @@ def _validate_config(config):
             raise Error("Invalid XBee 868 sensor address ({0}) - it must be a 64-bit hex value (string).", address)
 
         ADDRESSES[int(address, 16)] = host
+
+    HOSTS.update(hosts)

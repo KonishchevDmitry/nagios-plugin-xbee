@@ -8,6 +8,7 @@ from xbee_868.common.core import Error
 
 import xbee_868.monitor.stats
 from xbee_868 import monitor
+
 xbee_868 # Suppress PyFlakes warnings
 
 _HANDLERS = {}
@@ -40,8 +41,15 @@ def _handler(method):
     return register
 
 
+@_handler("metrics")
+def _metrics(host):
+    """Returns metrics for the specified host."""
+
+    return monitor.stats.get_metrics(host)
+
+
 @_handler("uptime")
 def _uptime():
     """Returns monitor service uptime."""
 
-    return { "uptime": monitor.stats.uptime() }
+    return monitor.stats.get_uptime()

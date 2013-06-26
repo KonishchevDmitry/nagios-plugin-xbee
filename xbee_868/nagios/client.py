@@ -25,10 +25,12 @@ def uptime():
     return _send("uptime")
 
 
-def _send(method, request={}):
+def _send(method, request=None):
     """Sends a request to the monitor."""
 
     try:
+        request = (request or {}).copy()
+
         if "method" in request:
             raise LogicalError()
 
