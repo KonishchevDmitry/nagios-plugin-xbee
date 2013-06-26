@@ -18,6 +18,7 @@ from xbee_868 import common
 import xbee_868.monitor.config
 import xbee_868.monitor.sensor
 import xbee_868.monitor.server
+import xbee_868.monitor.stats
 from xbee_868 import monitor
 
 xbee_868 # Suppress PyFlakes warnings
@@ -34,6 +35,7 @@ class _MainLoop(common.io_loop.IoLoop):
         try:
             monitor.server.Server(self)
             self.__deferred_call = self.call_next(self.__connect_to_sensors)
+            monitor.stats.monitor_started()
         except:
             self.close()
             raise
