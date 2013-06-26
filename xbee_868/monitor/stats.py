@@ -36,6 +36,16 @@ def get_uptime():
     return int(time.time() - _MONITOR_START_TIME)
 
 
+
+def add_metric(host, name, value):
+    """Adds a new metric."""
+
+    _METRICS.setdefault(host, {})[name] = {
+        "time":  int(time.time()),
+        "value": value,
+    }
+
+
 def get_metrics(host):
     """Returns recorded metrics for the specified host."""
 

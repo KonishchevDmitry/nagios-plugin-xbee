@@ -12,7 +12,11 @@ import struct
 from xbee_868.common.core import Error, LogicalError
 from xbee_868.common.io_loop import FileObject
 
+import xbee_868.monitor.stats
 from xbee_868.monitor import config
+from xbee_868 import monitor
+
+xbee_868 # Suppress PyFlakes warnings
 
 
 _FRAME_DELIMITER = 0x7E
@@ -340,5 +344,6 @@ def _handle_temperature(host, value):
         voltage = float(value) / max_value * max_voltage
         degrees = int((voltage - 0.5) * 100)
         LOG.info("Got a temperature for %s: %s.", host, degrees)
+        monitor.stats.add_metric(host, "temperature", degrees)
     else:
         LOG.error("Got an invalid temperature value for %s.", host)
