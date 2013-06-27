@@ -12,12 +12,13 @@ install:
 
 dist: clean
 	$(PYTHON) setup.py sdist
+	mv dist/nagios-plugin-xbee-*.tar.gz .
 
 srpm: dist
-	rpmbuild -bs --define "_sourcedir $(CURDIR)/dist" $(RPM_NAME).spec
+	rpmbuild -bs --define "_sourcedir $(CURDIR)" $(RPM_NAME).spec
 
 rpm: dist
-	rpmbuild -ba --define "_sourcedir $(CURDIR)/dist" $(RPM_NAME).spec
+	rpmbuild -ba --define "_sourcedir $(CURDIR)" $(RPM_NAME).spec
 
 clean:
-	rm -rf build dist nagios_plugin_xbee.egg-info
+	rm -rf build dist $(NAME)-*.tar.gz nagios_plugin_xbee.egg-info
