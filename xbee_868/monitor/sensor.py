@@ -9,6 +9,8 @@ import struct
 # TODO
 #import serial
 
+from pcore import PY3
+
 from xbee_868.common.core import Error, LogicalError
 from xbee_868.common.io_loop import FileObject
 
@@ -286,7 +288,8 @@ class _Sensor(FileObject):
 
         LOG.error("Error while processing a frame: %s", error)
 
-        frame_delimiter_pos = self._read_buffer.find(chr(_FRAME_DELIMITER), 1)
+        frame_delimiter_pos = self._read_buffer.find(
+            _FRAME_DELIMITER if PY3 else chr(_FRAME_DELIMITER), 1)
 
         if frame_delimiter_pos == -1:
             self.__skipped_bytes = len(self._read_buffer)
