@@ -39,12 +39,11 @@ make PYTHON=%{__python}
 make PYTHON=%{__python} INSTALL_FLAGS="-O1 --root '%buildroot' --install-scripts '%_sbindir'" install
 mkdir -p %buildroot/%_libdir/nagios/plugins
 mv %buildroot/%_sbindir/check_xbee %buildroot/%_libdir/nagios/plugins/
-find %buildroot/ -name '*.egg-info' -exec rm -rf -- '{}' '+'
 
 
 %files
 %defattr(-,root,root,-)
-%{python_sitelib}/xbee
+%{python_sitelib}/*
 %_sbindir/xbee-monitor
 %_libdir/nagios/plugins/check_xbee
 
