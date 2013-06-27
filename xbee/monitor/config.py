@@ -31,8 +31,8 @@ def load():
     try:
         with open(path) as config_file:
             exec(compile(config_file.read(), path, "exec"), config_module.__dict__)
-    except EnvironmentError as e:
-        raise Error("Failed to load configuration file '{0}': {1}.", path, e.strerror)
+    except Exception as e:
+        raise Error("Failed to load configuration file '{0}': {1}.", path, e)
 
     try:
         config = {}

@@ -133,7 +133,7 @@ def _configure_termination_signals(io_loop, signals, read_fd, write_fd):
             eintr_retry(os.write)(write_fd, b"\0")
         except EnvironmentError as e:
             if e.errno not in (errno.EPIPE, errno.EWOULDBLOCK):
-                LOG.error("Failed to send termination signal to I/O loop: %s.", e.strerror)
+                LOG.error("Failed to send termination signal to I/O loop: %s.", e)
 
     for sig in signals:
         signal.signal(sig, on_terminate)

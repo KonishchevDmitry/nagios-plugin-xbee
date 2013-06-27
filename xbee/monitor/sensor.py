@@ -314,7 +314,7 @@ def connect(io_loop):
         if e.errno == errno.ENOENT:
             LOG.debug("There is no any connected serial devices.")
         else:
-            LOG.error("Unable to list connected serial devices: {0}.", e.strerror)
+            LOG.error("Unable to list connected serial devices: {0}.", e)
     else:
         for device in devices:
             if device not in _Sensor.sensors:
