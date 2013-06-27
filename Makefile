@@ -13,7 +13,7 @@ install:
 dist: clean
 	$(PYTHON) setup.py sdist
 
-srpm:
+srpm: dist
 	rpmbuild -bs --define "_sourcedir $(CURDIR)/dist" $(RPM_NAME).spec
 
 rpm: dist
