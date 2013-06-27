@@ -5,9 +5,8 @@ from __future__ import unicode_literals
 import errno
 import logging
 import os
+import serial
 import struct
-# TODO
-#import serial
 
 from pcore import PY3
 
@@ -61,15 +60,10 @@ class _Sensor(FileObject):
 
 
     def __init__(self, io_loop, device):
-        # TODO
-        #sensor = serial.Serial(device, baudrate=9600)
-        sensor = open(device, "r")
-        import fcntl
-        fcntl.fcntl(sensor.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
+        sensor = serial.Serial(device, baudrate=9600)
 
         try:
-            # TODO
-            #sensor.nonblocking()
+            sensor.nonblocking()
             super(_Sensor, self).__init__(
                 io_loop, sensor, "XBee 868 at " + device)
         except:
@@ -330,6 +324,8 @@ def connect(io_loop):
                     _Sensor(io_loop, device)
                 except Exception as e:
                     LOG.error("Failed to connect to %s: %s", device_name, e)
+                else:
+                    LOG.info("Connected. Listening to metrics...")
 
         if not devices:
             LOG.debug("There is no any connected %s device.", device_name)
