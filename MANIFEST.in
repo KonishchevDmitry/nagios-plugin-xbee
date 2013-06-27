@@ -1,0 +1,4 @@
+include INSTALL
+include Makefile
+include nagios-plugins-xbee.spec
+include README
