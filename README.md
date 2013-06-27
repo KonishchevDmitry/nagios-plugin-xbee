@@ -1,1 +1,1 @@
-This is a Nagios plugin to check server's temperature via XBee 868.
+XBee 868 monitor service + Nagios plugin for checking servers' temperature
