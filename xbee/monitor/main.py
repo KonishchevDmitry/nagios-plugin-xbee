@@ -2,6 +2,7 @@
 
 from __future__ import unicode_literals
 
+import argparse
 import errno
 import fcntl
 import logging
@@ -84,9 +85,15 @@ class _TerminationSignal(common.io_loop.FileObject):
 def main():
     """The daemon's main function."""
 
+    parser = argparse.ArgumentParser(description="XBee monitor")
+    parser.add_argument("-d", "--debug", action="store_true",
+        help="print debug messages")
+
+    args = parser.parse_args()
+
     try:
         monitor.config.load()
-        common.log.setup(debug_mode="--debug" in sys.argv[1:])
+        common.log.setup(debug_mode=args.debug)
     except Exception as e:
         sys.exit("Unable to start the daemon: {0}".format(e))
 
@@ -136,6 +143,4 @@ def _configure_termination_signals(io_loop, signals, read_fd, write_fd):
 
 
 if __name__ == "__main__":
-    # TODO: --help
-    # TODO: argparse requires
     main()
