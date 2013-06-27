@@ -45,7 +45,7 @@ class Server(FileObject):
             try:
                 sock.bind(path)
                 sock.listen(128)
-            except OSError as e:
+            except EnvironmentError as e:
                 raise Error("Unable to create a UNIX socket '{0}': {1}.", path, e.strerror)
 
             super(Server, self).__init__(io_loop, sock, "Monitor's server socket")
@@ -89,7 +89,7 @@ class Server(FileObject):
 
         try:
             connection = eintr_retry(self._file.accept)()[0]
-        except OSError as e:
+        except EnvironmentError as e:
             if e.errno != errno.ECONNABORTED:
                 LOG.error("Unable to accept a connection: %s.", e.strerror)
         else:
@@ -112,7 +112,7 @@ class Server(FileObject):
 
         try:
             os.unlink(path)
-        except OSError as e:
+        except EnvironmentError as e:
             if e.errno != errno.ENOENT:
                 raise Error("Unable to delete '{0}': {1}.", path, e.strerror)
 

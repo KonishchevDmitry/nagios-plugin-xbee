@@ -221,7 +221,7 @@ class IoLoop(object):
                     if not obj.closed():
                         obj.on_write()
             except Exception as e:
-                if not isinstance(e, (OSError, EOFError)):
+                if not isinstance(e, (EnvironmentError, EOFError)):
                     LOG.exception("%s handling crashed.", obj)
 
                 obj.on_error(e)
@@ -402,7 +402,7 @@ class FileObject(object):
         if len(self._read_buffer) < size:
             try:
                 data = eintr_retry(os.read)(self.fileno(), size - len(self._read_buffer))
-            except OSError as e:
+            except EnvironmentError as e:
                 if e.errno != errno.EWOULDBLOCK:
                     raise
             else:
@@ -426,7 +426,7 @@ class FileObject(object):
         if self._write_buffer:
             try:
                 size = eintr_retry(os.write)(self.fileno(), self._write_buffer)
-            except OSError as e:
+            except EnvironmentError as e:
                 if e.errno == errno.EWOULDBLOCK:
                     pass
                 else:

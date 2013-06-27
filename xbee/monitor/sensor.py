@@ -310,7 +310,7 @@ def connect(io_loop):
             for device in os.listdir(device_directory)
                 if "xbib-u-ss" in device.lower()
         ]
-    except OSError as e:
+    except EnvironmentError as e:
         if e.errno == errno.ENOENT:
             LOG.debug("There is no any connected serial devices.")
         else:
