@@ -11,19 +11,19 @@ import sys
 
 from psys import eintr_retry
 
-import xbee_868.common.log
-import xbee_868.common.io_loop
-from xbee_868 import common
+import xbee.common.log
+import xbee.common.io_loop
+from xbee import common
 
-import xbee_868.monitor.config
-import xbee_868.monitor.sensor
-import xbee_868.monitor.server
-import xbee_868.monitor.stats
-from xbee_868 import monitor
+import xbee.monitor.config
+import xbee.monitor.sensor
+import xbee.monitor.server
+import xbee.monitor.stats
+from xbee import monitor
 
-xbee_868 # Suppress PyFlakes warnings
+xbee # Suppress PyFlakes warnings
 
-LOG = logging.getLogger("xbee_868.monitor.main" if __name__ == "__main__" else __name__)
+LOG = logging.getLogger("xbee.monitor.main" if __name__ == "__main__" else __name__)
 
 
 class _MainLoop(common.io_loop.IoLoop):
@@ -49,7 +49,7 @@ class _MainLoop(common.io_loop.IoLoop):
 
 
     def __connect_to_sensors(self):
-        """Connects to XBee 868 devices."""
+        """Connects to XBee devices."""
 
         try:
             monitor.sensor.connect(self)
@@ -136,4 +136,6 @@ def _configure_termination_signals(io_loop, signals, read_fd, write_fd):
 
 
 if __name__ == "__main__":
+    # TODO: --help
+    # TODO: argparse requires
     main()

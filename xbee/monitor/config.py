@@ -7,7 +7,7 @@ import re
 
 from pcore import PY3, str, bytes
 
-from xbee_868.common.core import Error
+from xbee.common.core import Error
 
 
 HOSTS = set()
@@ -16,7 +16,7 @@ HOSTS = set()
 ADDRESSES = {}
 """Sensor MAC address to host mappings."""
 
-_CONFIG_PATH = "/etc/xbee-868-monitor.conf"
+_CONFIG_PATH = "/etc/xbee-monitor.conf"
 """Configuration file path."""
 
 
@@ -116,7 +116,7 @@ def _validate_config(config):
             raise Error("Invalid host name ({0}} - it must be a string.", host)
 
         if type(address) is not str or not re.search("^[0-9a-zA-Z]{16}$", address):
-            raise Error("Invalid XBee 868 sensor address ({0}) - it must be a 64-bit hex value (string).", address)
+            raise Error("Invalid XBee sensor address ({0}) - it must be a 64-bit hex value (string).", address)
 
         ADDRESSES[int(address, 16)] = host
 

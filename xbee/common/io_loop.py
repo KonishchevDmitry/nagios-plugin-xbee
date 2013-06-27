@@ -16,7 +16,7 @@ from select import EPOLLIN, EPOLLOUT, EPOLLHUP, EPOLLERR
 from pcore import PY3, range
 from psys import eintr_retry
 
-from xbee_868.common.core import Error
+from xbee.common.core import Error
 
 LOG = logging.getLogger(__name__)
 

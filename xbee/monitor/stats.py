@@ -4,9 +4,9 @@ from __future__ import unicode_literals
 
 import time
 
-from xbee_868.common.core import Error
+from xbee.common.core import Error
 
-from xbee_868.monitor import config
+from xbee.monitor import config
 
 
 _MONITOR_START_TIME = None

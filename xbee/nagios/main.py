@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""Checks XBee 868 sensor."""
+"""Checks XBee sensor."""
 
 from __future__ import unicode_literals
 
@@ -9,12 +9,12 @@ import sys
 import time
 
 from pcore import str
-from xbee_868.common.core import Error, LogicalError
+from xbee.common.core import Error, LogicalError
 
-import xbee_868.nagios.client
-from xbee_868 import nagios
+import xbee.nagios.client
+from xbee import nagios
 
-xbee_868 # Suppress PyFlakes warnings
+xbee # Suppress PyFlakes warnings
 
 
 _STATUS_OK = "OK"
@@ -46,7 +46,7 @@ def main():
 
     try:
         parser = argparse.ArgumentParser(
-            description="XBee 868 Nagios plugin")
+            description="XBee Nagios plugin")
 
         parser.add_argument("host", help="host")
         parser.add_argument("metric", choices=["temperature"], help="metric name")

@@ -4,12 +4,12 @@ from __future__ import unicode_literals
 
 import logging
 
-from xbee_868.common.core import Error
+from xbee.common.core import Error
 
-import xbee_868.monitor.stats
-from xbee_868 import monitor
+import xbee.monitor.stats
+from xbee import monitor
 
-xbee_868 # Suppress PyFlakes warnings
+xbee # Suppress PyFlakes warnings
 
 _HANDLERS = {}
 """Registered handlers."""

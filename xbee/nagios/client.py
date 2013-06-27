@@ -1,4 +1,4 @@
-"""Client module for XBee 868 monitor."""
+"""Client module for XBee monitor."""
 
 from __future__ import unicode_literals
 
@@ -9,8 +9,8 @@ import struct
 
 from psys import eintr_retry
 
-from xbee_868.common import constants
-from xbee_868.common.core import Error, LogicalError
+from xbee.common import constants
+from xbee.common.core import Error, LogicalError
 
 
 def metrics(host):
@@ -84,7 +84,7 @@ def _send(method, request=None):
         except (UnicodeDecodeError, ValueError) as e:
             raise Error("The server returned an invalid response.")
     except Exception as e:
-        raise Error("XBee 868 monitor request failed: {0}", e)
+        raise Error("XBee monitor request failed: {0}", e)
 
     if "error" in reply or "result" not in reply:
         raise Error(reply.get("error", "Unknown error."))

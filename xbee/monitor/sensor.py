@@ -11,14 +11,14 @@ import struct
 
 from pcore import PY3
 
-from xbee_868.common.core import Error, LogicalError
-from xbee_868.common.io_loop import FileObject
+from xbee.common.core import Error, LogicalError
+from xbee.common.io_loop import FileObject
 
-import xbee_868.monitor.stats
-from xbee_868.monitor import config
-from xbee_868 import monitor
+import xbee.monitor.stats
+from xbee.monitor import config
+from xbee import monitor
 
-xbee_868 # Suppress PyFlakes warnings
+xbee # Suppress PyFlakes warnings
 
 
 _FRAME_DELIMITER = 0x7E

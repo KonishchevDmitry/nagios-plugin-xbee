@@ -12,14 +12,14 @@ import struct
 from pcore import str, bytes
 from psys import eintr_retry
 
-from xbee_868.common import constants
-from xbee_868.common.core import Error
-from xbee_868.common.io_loop import FileObject
+from xbee.common import constants
+from xbee.common.core import Error
+from xbee.common.io_loop import FileObject
 
-import xbee_868.monitor.request
-from xbee_868 import monitor
+import xbee.monitor.request
+from xbee import monitor
 
-xbee_868 # Suppress PyFlakes warnings
+xbee # Suppress PyFlakes warnings
 
 _MAX_REQUEST_SIZE = 1024 * 1024
 """Maximum request size."""
