@@ -36,15 +36,10 @@ class Server(FileObject):
         path = constants.SERVER_SOCKET_PATH
         LOG.info("Listening to client connections at '%s'...", path)
 
+        self.__delete_socket()
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
         try:
-            try:
-                os.unlink(path)
-            except OSError as e:
-                if e.errno != errno.ENOENT:
-                    raise Error("Unable to delete '{0}': {1}.", path, e.strerror)
-
             sock.setblocking(False)
 
             try:
@@ -55,8 +50,32 @@ class Server(FileObject):
 
             super(Server, self).__init__(io_loop, sock, "Monitor's server socket")
         except:
+            try:
+                self.__delete_socket()
+            except Exception as e:
+                LOG.error(e)
+
             eintr_retry(sock.close())
+
             raise
+
+
+    def close(self):
+        """Closes the object."""
+
+        if not self.closed():
+            try:
+                self.__delete_socket()
+            except Exception as e:
+                LOG.error("Error while closing the server socket: %s", e)
+
+        super(Server, self).close()
+
+
+    def stop(self):
+        """Called when the I/O loop ends its work."""
+
+        self.close()
 
 
     def poll_read(self):
@@ -86,10 +105,16 @@ class Server(FileObject):
                 eintr_retry(connection.close())
 
 
-    def stop(self):
-        """Called when the I/O loop ends its work."""
+    def __delete_socket(self):
+        """Deletes the server socket."""
 
-        self.close()
+        path = constants.SERVER_SOCKET_PATH
+
+        try:
+            os.unlink(path)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise Error("Unable to delete '{0}': {1}.", path, e.strerror)
 
 
 
