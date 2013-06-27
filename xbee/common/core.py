@@ -1,7 +1,6 @@
 """Contains various core classes and functions."""
 
 from __future__ import unicode_literals
-# TODO pcore, psys?
 
 
 class Error(Exception):
