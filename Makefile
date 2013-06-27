@@ -2,9 +2,7 @@
 
 NAME := nagios-plugin-xbee
 RPM_NAME := nagios-plugins-xbee
-
 PYTHON := python
-DISTDIR := $(CURDIR)/dist
 
 build:
 	$(PYTHON) setup.py build
@@ -16,10 +14,10 @@ dist: clean
 	$(PYTHON) setup.py sdist
 
 srpm:
-	rpmbuild -bs --define "_sourcedir $(DISTDIR)" $(RPM_NAME).spec
+	rpmbuild -bs --define "_sourcedir $(CURDIR)/dist" $(RPM_NAME).spec
 
 rpm: dist
-	rpmbuild -ba --define "_sourcedir $(DISTDIR)" $(RPM_NAME).spec
+	rpmbuild -ba --define "_sourcedir $(CURDIR)/dist" $(RPM_NAME).spec
 
 clean:
-	rm -rf build $(DISTDIR) $(NAME).egg-info *.egg
+	rm -rf build dist nagios_plugin_xbee.egg-info
