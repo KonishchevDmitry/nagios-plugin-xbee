@@ -10,13 +10,14 @@ Summary: XBee monitor + Nagios plugin for checking servers' temperature
 Group:   Applications/System
 License: GPLv3
 URL:     https://ghe.cloud.croc.ru/dvs/nagios-plugin-xbee
-Source:  %{project_name}-%{version}.tar.gz
+Source0: %{project_name}-%{version}.tar.gz
+Source1: xbee-monitor.conf
+
 
 BuildArch:     noarch
 BuildRequires: python-setuptools, make
 
-Requires: python
-Requires: pyserial
+Requires: python, pyserial, python-psys
 %if %python_less_27
 Requires: python-argparse
 %endif
@@ -37,8 +38,11 @@ make PYTHON=%{__python}
 [ %buildroot = "/" ] || rm -rf %buildroot
 
 make PYTHON=%{__python} INSTALL_FLAGS="-O1 --root '%buildroot' --install-scripts '%_sbindir'" install
+
 mkdir -p %buildroot/%_libdir/nagios/plugins
 mv %buildroot/%_sbindir/check_xbee %buildroot/%_libdir/nagios/plugins/
+
+install -p -D -m 644 %{SOURCE1} %buildroot/%_sysconfdir/xbee-monitor.conf
 
 
 %files
@@ -46,6 +50,7 @@ mv %buildroot/%_sbindir/check_xbee %buildroot/%_libdir/nagios/plugins/
 %{python_sitelib}/*
 %_sbindir/xbee-monitor
 %_libdir/nagios/plugins/check_xbee
+%config(noreplace) %_sysconfdir/xbee-monitor.conf
 
 
 %clean
