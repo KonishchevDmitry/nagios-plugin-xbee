@@ -21,7 +21,7 @@ from xbee import monitor
 
 xbee # Suppress PyFlakes warnings
 
-_MAX_REQUEST_SIZE = 1024 * 1024
+_MAX_REQUEST_SIZE = constants.MEGABYTE
 """Maximum request size."""
 
 LOG = logging.getLogger(__name__)

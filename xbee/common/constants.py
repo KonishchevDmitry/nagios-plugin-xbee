@@ -3,7 +3,14 @@
 from __future__ import unicode_literals
 
 
-BUFSIZE = 4 * 1024
+KILOBYTE = 1024
+"""Bytes in kilobyte."""
+
+MEGABYTE = 1024 * KILOBYTE
+"""Bytes in megabyte."""
+
+
+BUFSIZE = 4 * KILOBYTE
 """I/O buffer size."""
 
 SERVER_SOCKET_PATH = "/var/run/xbee-monitor"
