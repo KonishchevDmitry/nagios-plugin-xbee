@@ -3,3 +3,4 @@ include Makefile
 include nagios-plugins-xbee.spec
 include README
 include xbee-monitor.conf
+include xbee-monitor.upstart.conf

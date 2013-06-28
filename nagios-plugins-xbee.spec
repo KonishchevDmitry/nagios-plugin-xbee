@@ -12,6 +12,7 @@ License: GPLv3
 URL:     https://ghe.cloud.croc.ru/dvs/nagios-plugin-xbee
 Source0: %{project_name}-%{version}.tar.gz
 Source1: xbee-monitor.conf
+Source2: xbee-monitor.upstart.conf
 
 
 BuildArch:     noarch
@@ -43,6 +44,7 @@ mkdir -p %buildroot/%_libdir/nagios/plugins
 mv %buildroot/%_sbindir/check_xbee %buildroot/%_libdir/nagios/plugins/
 
 install -p -D -m 644 %{SOURCE1} %buildroot/%_sysconfdir/xbee-monitor.conf
+install -p -D -m 644 %{SOURCE2} %buildroot/%_sysconfdir/init/xbee-monitor.conf
 
 
 %files
@@ -51,6 +53,7 @@ install -p -D -m 644 %{SOURCE1} %buildroot/%_sysconfdir/xbee-monitor.conf
 %_sbindir/xbee-monitor
 %_libdir/nagios/plugins/check_xbee
 %config(noreplace) %_sysconfdir/xbee-monitor.conf
+%config(noreplace) %_sysconfdir/init/xbee-monitor.conf
 
 
 %clean
