@@ -93,7 +93,7 @@ def main():
 
     try:
         monitor.config.load()
-        common.log.setup(debug_mode=args.debug)
+        common.log.setup("xbee-monitor", debug_mode=args.debug)
     except Exception as e:
         sys.exit("Unable to start the daemon: {0}".format(e))
 
