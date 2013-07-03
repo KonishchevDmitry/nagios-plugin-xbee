@@ -3,7 +3,7 @@
 import sys
 from setuptools import find_packages, setup
 
-requires = ["pyserial", "psys"]
+requires = ["pyserial", "psys", "python-config"]
 if sys.version_info < (2, 7):
     requires.append("argparse")
 

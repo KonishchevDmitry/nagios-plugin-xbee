@@ -18,7 +18,7 @@ Source2: xbee-monitor.upstart.conf
 BuildArch:     noarch
 BuildRequires: python-setuptools, make
 
-Requires: python, pyserial, python-psys
+Requires: python, pyserial, python-psys, python-config
 %if %python_less_27
 Requires: python-argparse
 %endif
