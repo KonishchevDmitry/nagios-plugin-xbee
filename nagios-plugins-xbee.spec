@@ -9,7 +9,7 @@ Summary: XBee monitor + Nagios plugin for checking servers' temperature
 
 Group:   Applications/System
 License: GPLv3
-URL:     https://ghe.cloud.croc.ru/dvs/nagios-plugin-xbee
+URL:     https://github.com/KonishchevDmitry/nagios-plugin-xbee
 Source0: %project_name-%version.tar.gz
 Source1: xbee-monitor.conf
 Source2: xbee-monitor.upstart.conf

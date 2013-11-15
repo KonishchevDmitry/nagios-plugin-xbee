@@ -15,7 +15,7 @@ with open("README") as readme:
         license = "GPL",
         description = readme.readline().strip(),
         long_description = readme.read().strip(),
-        url = "https://ghe.cloud.croc.ru/dvs/nagios-plugin-xbee",
+        url = "https://github.com/KonishchevDmitry/nagios-plugin-xbee",
 
         install_requires = requires,
 
