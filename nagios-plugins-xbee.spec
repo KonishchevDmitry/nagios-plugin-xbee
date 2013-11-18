@@ -3,8 +3,8 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:    nagios-plugins-xbee
-Version: 0.1
-Release: 2%{?dist}
+Version: 0.1.1
+Release: 1%{?dist}
 Summary: XBee monitor + Nagios plugin for checking servers' temperature
 
 Group:   Applications/System
@@ -18,7 +18,7 @@ Source2: xbee-monitor.upstart.conf
 BuildArch:     noarch
 BuildRequires: python-setuptools, make
 
-Requires: python, pyserial, python-psys, python-config
+Requires: python, pyserial, python-config, python-pcore, python-psys >= 0.3
 %if %python_less_27
 Requires: python-argparse
 %endif
@@ -65,6 +65,9 @@ install -p -D -m 644 "%SOURCE2" "%buildroot/%_sysconfdir/init/xbee-monitor.conf"
 
 
 %changelog
+* Mon Nov 18 2013 Dmitry Konishchev <konishchev@gmail.com> - 0.1.1-1
+- New version.
+
 * Thu Jun 27 2013 Dmitry Konishchev <konishchev@gmail.com> - 0.1-2
 - A few changes in spec file.
 

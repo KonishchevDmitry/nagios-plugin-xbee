@@ -3,14 +3,14 @@
 import sys
 from setuptools import find_packages, setup
 
-requires = ["pyserial", "psys", "python-config"]
+requires = ["pcore", "pyserial", "psys >= 0.3", "python-config"]
 if sys.version_info < (2, 7):
     requires.append("argparse")
 
 with open("README") as readme:
     setup(
         name = "nagios-plugin-xbee",
-        version = "0.1",
+        version = "0.1.1",
 
         license = "GPL",
         description = readme.readline().strip(),
